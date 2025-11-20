@@ -1,0 +1,48 @@
+# ===========================
+# ROOT LEVEL IGNORE
+# ===========================
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Global logs
+logs/
+*.log
+
+# Global environments
+.env
+.env.*
+
+# Virtual env (if created at root)
+venv/
+.venv/
+env/
+ENV/
+
+# Global caches
+.cache/
+.eslintcache
+stylelintcache
+.mypy_cache/
+.pyre/
+.pytype/
+__pypackages__/
+.parcel-cache/
+
+# Backup / temp
+*.local
+*.tmp
+*.bak
+*~
+
+# Docs
+docs/_build/
+site/
+

@@ -1,0 +1,47 @@
+# ===========================
+# FASTAPI BACKEND IGNORE
+# ===========================
+
+# Bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Env files
+.env
+.env.*
+
+# DB & uploads
+*.db
+*.sqlite3
+media/
+uploads/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage*
+.pytest_cache/
+pytestdebug.log
+coverage.xml
+
+# Alembic
+alembic/__pycache__/
+alembic/versions/*.pyc
+
+# Logs
+*.log
+
+# Virtual env (if local)
+venv/
+.venv/
+env/
+

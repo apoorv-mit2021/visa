@@ -1,0 +1,35 @@
+# ===========================
+# FRONTEND (Vite + React)
+# ===========================
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+
+# Env files
+.env
+.env.*
+*.local
+
+# Vite cache
+.vite/
+.vite_cache/
+
+# Test coverage
+coverage/
+
+# Temp dirs
+tmp/
+temp/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
