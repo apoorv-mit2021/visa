@@ -1,9 +1,6 @@
 from contextlib import asynccontextmanager
-import os
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-
 from app.api.v1.router import api_router
 from app.db import create_db_and_tables
 
@@ -17,7 +14,7 @@ async def lifespan(app: FastAPI):
 
 # ✅ Initialize FastAPI app
 app = FastAPI(
-    title="Visa API",
+    title="Ecommerce API",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -42,16 +39,11 @@ app.add_middleware(
 )
 app.include_router(api_router, prefix="/api/v1")
 
-# Static media mounting for uploaded files (e.g., product images)
-MEDIA_ROOT = os.getenv("MEDIA_ROOT", "media")
-os.makedirs(MEDIA_ROOT, exist_ok=True)
-app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
-
 
 @app.get("/", tags=["Root"])
 def root():
     return {
-        "message": "Welcome to the Visa API",
+        "message": "Welcome to the E-commerce API",
         "docs_url": "/docs",
         "health_check": "/api/v1/health",
     }

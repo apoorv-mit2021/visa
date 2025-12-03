@@ -1,8 +1,14 @@
-from typing import Optional, List
-from sqlmodel import SQLModel, Field, Relationship
-from .base import BaseTable, BaseRead
-from .user import User
-from .product import Product
+from __future__ import annotations
+
+from typing import List, Optional, TYPE_CHECKING
+from sqlalchemy import String, Float, ForeignKey, Integer, JSON
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, BaseTableMixin
+
+if TYPE_CHECKING:
+    from app.models.user import User
+    from app.models.catalog import Product
 
 
 class OrderStatus:
@@ -11,61 +17,61 @@ class OrderStatus:
     SHIPPED = "shipped"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
+    RETURNED = "returned"
 
 
-class Order(BaseTable, table=True):
-    """User order model"""
+# -----------------------------------------------------
+# ORDER MODEL
+# -----------------------------------------------------
+class Order(Base, BaseTableMixin):
     __tablename__ = "orders"
 
-    user_id: int = Field(foreign_key="users.id", index=True)
-    total_amount: float = Field(default=0)
-    status: str = Field(default=OrderStatus.PENDING, index=True)
-    user: User = Relationship(back_populates="orders")
+    # User is OPTIONAL for guest checkout
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
 
-    items: List["OrderItem"] = Relationship(
+    total_amount = mapped_column(Float, default=0.0, nullable=False)
+    status = mapped_column(String(50), default=OrderStatus.PENDING, nullable=False, index=True)
+
+    # Address snapshots stored as JSON
+    shipping_address = mapped_column(JSON, nullable=False)
+    billing_address = mapped_column(JSON, nullable=False)
+
+    user: Mapped[Optional["User"]] = relationship(
+        "User",
+        back_populates="orders",
+        lazy="selectin",
+    )
+
+    items: Mapped[List["OrderItem"]] = relationship(
+        "OrderItem",
         back_populates="order",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan", "lazy": "selectin"},
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
 
-class OrderItem(BaseTable, table=True):
-    """Line items within an order"""
+# -----------------------------------------------------
+# ORDER ITEM
+# -----------------------------------------------------
+class OrderItem(Base, BaseTableMixin):
     __tablename__ = "order_items"
 
-    order_id: int = Field(foreign_key="orders.id")
-    product_id: int = Field(foreign_key="products.id")
-    quantity: int = Field(gt=0)
-    price: float = Field(ge=0)
+    order_id = mapped_column(ForeignKey("orders.id"), nullable=False, index=True)
+    product_id = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
 
-    order: Order = Relationship(back_populates="items")
-    product: Product = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
+    size = mapped_column(String(20), nullable=False)
+    quantity = mapped_column(Integer, nullable=False)
+    price = mapped_column(Float, nullable=False)
 
+    order: Mapped["Order"] = relationship(
+        "Order",
+        back_populates="items",
+        lazy="selectin",
+    )
 
-# -----------------------------
-# Schemas
-# -----------------------------
-
-class OrderItemCreate(SQLModel):
-    product_id: int
-    quantity: int
-
-
-class OrderItemRead(BaseRead):
-    id: int
-    product_id: int
-    quantity: int
-    price: float
-    product: Optional[Product] = None
-
-
-class OrderCreate(SQLModel):
-    """Used when converting a cart into an order"""
-    cart_id: Optional[int] = None
-
-
-class OrderRead(BaseRead):
-    id: int
-    user_id: int
-    total_amount: float
-    status: str
-    items: Optional[List[OrderItemRead]] = None
+    product: Mapped["Product"] = relationship(
+        "Product",
+        lazy="selectin",
+    )

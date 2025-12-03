@@ -1,15 +1,16 @@
 # backend/app/api/v1/endpoints/admin/order.py
 
-from datetime import datetime, timedelta
+
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select, func
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, require_admin, require_staff
-from app.core.deps import get_session
-from app.models import Order, OrderRead, User
-from app.utils.common import utcnow
+from app.core.deps import get_session, get_current_user, require_staff
+from app.services.order_service import OrderService
+from app.schemas.order import OrderRead
+from app.models.user import User
+from app.models.order import OrderStatus
 
 router = APIRouter()
 
@@ -17,94 +18,83 @@ router = APIRouter()
 # ORDER METRICS
 @router.get("/metrics/")
 def get_order_metrics(
-        session: Session = Depends(get_session),
+        db: Session = Depends(get_session),
         current_user: User = Depends(get_current_user),
 ):
     require_staff(current_user)
-
-    total_orders = session.exec(select(func.count(Order.id))).one()
-    pending_orders = session.exec(
-        select(func.count(Order.id)).where(Order.status == "pending")
-    ).one()
-    completed_orders = session.exec(
-        select(func.count(Order.id)).where(Order.status == "completed")
-    ).one()
-    cancelled_orders = session.exec(
-        select(func.count(Order.id)).where(Order.status == "cancelled")
-    ).one()
-    total_revenue = session.exec(select(func.sum(Order.total_amount))).one() or 0.0
-    avg_order_value = (
-        round(total_revenue / total_orders, 2) if total_orders > 0 else 0.0
-    )
-    seven_days_ago = utcnow() - timedelta(days=7)
-    recent_orders = session.exec(
-        select(func.count(Order.id)).where(Order.created_at >= seven_days_ago)
-    ).one()
-
-    return {
-        "total_orders": total_orders,
-        "pending_orders": pending_orders,
-        "completed_orders": completed_orders,
-        "cancelled_orders": cancelled_orders,
-        "total_revenue": round(total_revenue, 2),
-        "avg_order_value": avg_order_value,
-        "orders_last_7_days": recent_orders,
-    }
+    return OrderService.get_order_metrics(db)
 
 
-# LIST ORDERS
+# ------------------------------
+# LIST ALL ORDERS (ADMIN)
+# ------------------------------
 @router.get("/", response_model=List[OrderRead])
-def list_orders(
-        session: Session = Depends(get_session),
+def admin_list_orders(
+        status_filter: Optional[str] = Query(None),
+        db: Session = Depends(get_session),
         current_user: User = Depends(get_current_user),
-        skip: int = Query(0, ge=0),
-        limit: int = Query(100, ge=1, le=1000),
-        status: Optional[str] = None,
 ):
     require_staff(current_user)
 
-    query = select(Order)
-    if status:
-        query = query.where(Order.status == status)
+    orders = OrderService.list_orders(
+        db=db,
+        user_id=None,
+        status=status_filter,
+    )
 
-    query = query.order_by(Order.created_at.desc())
-    orders = session.exec(query.offset(skip).limit(limit)).all()
-    return orders
+    return [OrderRead.model_validate(o) for o in orders]
 
 
-# GET SINGLE ORDER
+# ------------------------------
+# GET ORDER BY ID (ADMIN)
+# ------------------------------
 @router.get("/{order_id}", response_model=OrderRead)
-def get_order(
+def admin_get_order(
         order_id: int,
-        session: Session = Depends(get_session),
-        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
 ):
-    """Get a specific order (admin/staff only)"""
-    require_admin(current_user)
+    require_staff(current_user)
 
-    order = session.get(Order, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    return order
+    order = OrderService.get_order(db, order_id)
+    return OrderRead.model_validate(order)
 
 
-# UPDATE ORDER STATUS
+# ------------------------------
+# UPDATE ORDER STATUS (ADMIN)
+# ------------------------------
 @router.put("/{order_id}/status", response_model=OrderRead)
-def update_order_status(
+def admin_update_order_status(
         order_id: int,
         status: str,
-        session: Session = Depends(get_session),
+        db: Session = Depends(get_session),
         current_user: User = Depends(get_current_user),
 ):
-    """Update order status (admin/staff only)"""
     require_staff(current_user)
 
-    order = session.get(Order, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    if status not in {
+        OrderStatus.PENDING,
+        OrderStatus.PAID,
+        OrderStatus.SHIPPED,
+        OrderStatus.DELIVERED,
+        OrderStatus.CANCELLED,
+        OrderStatus.RETURNED,
+    }:
+        raise HTTPException(status_code=400, detail="Invalid status")
 
-    order.status = status
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
+    order = OrderService.update_order_status(db, order_id, status)
+    return OrderRead.model_validate(order)
+
+
+# ------------------------------
+# DELETE ORDER (ADMIN)
+# ------------------------------
+@router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
+def admin_delete_order(
+        order_id: int,
+        db: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user),
+):
+    require_staff(current_user)
+    OrderService.delete_order(db, order_id)
+    return None

@@ -1,149 +1,112 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select, func
-from datetime import datetime, timedelta
+# app/api/v1/endpoints/admin/support_case.py
 
-from app.db import get_session
-from app.models import (
-    SupportCase,
-    SupportCaseUpdate,
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
+
+from app.core.deps import get_session, require_staff
+from app.models.user import User
+from app.schemas.case import (
     SupportCaseRead,
-    CaseMessage,
+    SupportCaseUpdate,
     CaseMessageCreate,
     CaseMessageRead,
-    User,
+    SupportMetrics,
 )
-from app.core.deps import get_current_user, require_admin
+from app.services.case_service import SupportCaseService
 
 router = APIRouter()
 
 
-# ---------------------------------------------------
-# 📋 LIST ALL SUPPORT CASES
-# ---------------------------------------------------
-@router.get("/", response_model=list[SupportCaseRead])
-def list_all_cases(
-        session: Session = Depends(get_session),
-        current_user: User = Depends(get_current_user),
+# -----------------------------------------------------
+# LIST ALL CASES
+# -----------------------------------------------------
+@router.get("/", response_model=List[SupportCaseRead])
+def list_cases(
+        db: Session = Depends(get_session),
+        current_user: User = Depends(require_staff),
+        status: Optional[str] = None,
+        search: Optional[str] = None,
+        skip: int = Query(0, ge=0),
+        limit: int = Query(100, ge=1),
 ):
-    """Admin/staff view of all support cases"""
-    role_names = [r.name for r in current_user.roles]
-    if not any(r in role_names for r in ["admin", "staff"]):
-        raise HTTPException(status_code=403, detail="Admin/staff access only")
+    cases = SupportCaseService.list_cases(
+        db=db,
+        status=status,
+        search=search,
+        skip=skip,
+        limit=limit,
+    )
+    return [SupportCaseRead.model_validate(c) for c in cases]
 
-    cases = session.exec(select(SupportCase).order_by(SupportCase.created_at.desc())).all()
-    return cases
+
+# -----------------------------------------------------
+# SUPPORT METRICS
+# -----------------------------------------------------
+@router.get("/metrics/", response_model=SupportMetrics)
+def get_metrics(
+        db: Session = Depends(get_session),
+        current_user: User = Depends(require_staff),
+):
+    metrics = SupportCaseService.get_support_metrics(db)
+    return metrics
 
 
-# ---------------------------------------------------
-# ✏️ UPDATE SUPPORT CASE
-# ---------------------------------------------------
+# -----------------------------------------------------
+# GET SINGLE CASE
+# -----------------------------------------------------
+@router.get("/{case_id}", response_model=SupportCaseRead)
+def get_case(
+        case_id: int,
+        db: Session = Depends(get_session),
+        current_user: User = Depends(require_staff),
+):
+    case = SupportCaseService.get_case(db, case_id)
+    return SupportCaseRead.model_validate(case)
+
+
+# -----------------------------------------------------
+# UPDATE CASE (ADMIN)
+# -----------------------------------------------------
 @router.put("/{case_id}", response_model=SupportCaseRead)
 def update_case(
         case_id: int,
-        update_data: SupportCaseUpdate,
-        session: Session = Depends(get_session),
-        current_user: User = Depends(get_current_user),
+        payload: SupportCaseUpdate,
+        db: Session = Depends(get_session),
+        current_user: User = Depends(require_staff),
 ):
-    """Admin can assign or change case status"""
-    require_admin(current_user)
-
-    case = session.get(SupportCase, case_id)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    for key, value in update_data.model_dump(exclude_unset=True).items():
-        setattr(case, key, value)
-
-    session.add(case)
-    session.commit()
-    session.refresh(case)
-    return case
+    updated = SupportCaseService.update_case(db, case_id, payload)
+    return SupportCaseRead.model_validate(updated)
 
 
-# ---------------------------------------------------
-# 💬 ADD STAFF MESSAGE TO CASE
-# ---------------------------------------------------
-@router.post("/{case_id}/message", response_model=CaseMessageRead)
-def staff_add_message(
+# -----------------------------------------------------
+# CLOSE CASE
+# -----------------------------------------------------
+@router.post("/{case_id}/close", response_model=SupportCaseRead)
+def close_case(
         case_id: int,
-        message_data: CaseMessageCreate,
-        session: Session = Depends(get_session),
-        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_session),
+        current_user: User = Depends(require_staff),
 ):
-    """Staff or admin sends message in a case"""
-    role_names = [r.name for r in current_user.roles]
-    if not any(r in role_names for r in ["admin", "staff"]):
-        raise HTTPException(status_code=403, detail="Admin/staff access only")
+    closed = SupportCaseService.close_case(db, case_id)
+    return SupportCaseRead.model_validate(closed)
 
-    case = session.get(SupportCase, case_id)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
 
-    msg = CaseMessage(
-        case_id=case.id,
+# -----------------------------------------------------
+# ADMIN REPLY TO CASE
+# -----------------------------------------------------
+@router.post("/{case_id}/message", response_model=CaseMessageRead)
+def admin_add_message(
+        case_id: int,
+        payload: CaseMessageCreate,
+        db: Session = Depends(get_session),
+        current_user: User = Depends(require_staff),
+):
+    message = SupportCaseService.add_message(
+        db=db,
+        case_id=case_id,
         sender_id=current_user.id,
-        message=message_data.message,
+        data=payload,
     )
-    session.add(msg)
-    session.commit()
-    session.refresh(msg)
-    return msg
-
-
-# ---------------------------------------------------
-# 📊 SUPPORT CASE METRICS
-# ---------------------------------------------------
-@router.get("/metrics/", tags=["Admin: Support"])
-def get_support_case_metrics(
-        session: Session = Depends(get_session),
-        current_user: User = Depends(get_current_user),
-):
-    """
-    📈 Retrieve key metrics for support cases (admin/staff only)
-    - total_cases
-    - open_cases
-    - closed_cases
-    - in_progress_cases
-    - avg_response_time_hours
-    - cases_last_7_days
-    """
-    role_names = [r.name for r in current_user.roles]
-    if not any(r in role_names for r in ["admin", "staff"]):
-        raise HTTPException(status_code=403, detail="Admin/staff access only")
-
-    # Total cases
-    total_cases = session.exec(select(func.count(SupportCase.id))).one()
-
-    # Status breakdown
-    open_cases = session.exec(
-        select(func.count(SupportCase.id)).where(SupportCase.status == "open")
-    ).one()
-    closed_cases = session.exec(
-        select(func.count(SupportCase.id)).where(SupportCase.status == "closed")
-    ).one()
-    in_progress_cases = session.exec(
-        select(func.count(SupportCase.id)).where(SupportCase.status == "in_progress")
-    ).one()
-
-    # Cases created in the last 7 days
-    seven_days_ago = datetime.utcnow() - timedelta(days=7)
-    cases_last_7_days = session.exec(
-        select(func.count(SupportCase.id)).where(SupportCase.created_at >= seven_days_ago)
-    ).one()
-
-    # Average response time (based on first message timestamps)
-    avg_response_time = session.exec(
-        select(func.avg(func.julianday(CaseMessage.created_at) - func.julianday(SupportCase.created_at)))
-        .join(SupportCase, SupportCase.id == CaseMessage.case_id)
-    ).one() or 0.0
-
-    avg_response_time_hours = round(avg_response_time * 24, 2)  # convert days → hours
-
-    return {
-        "total_cases": total_cases,
-        "open_cases": open_cases,
-        "in_progress_cases": in_progress_cases,
-        "closed_cases": closed_cases,
-        "cases_last_7_days": cases_last_7_days,
-        "avg_response_time_hours": avg_response_time_hours,
-    }
+    return CaseMessageRead.model_validate(message)

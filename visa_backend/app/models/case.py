@@ -1,109 +1,96 @@
-from typing import Optional, List
-from datetime import datetime, timezone
-from sqlmodel import SQLModel, Field, Relationship
-from .base import BaseTable, BaseRead
+# app/models/support_case.py
 
-from typing import TYPE_CHECKING
+from __future__ import annotations
+
+from typing import List, Optional, TYPE_CHECKING
+
+from sqlalchemy import String, ForeignKey, DateTime
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, BaseTableMixin
+from app.utils.common import utcnow
 
 if TYPE_CHECKING:
-    from .user import User
-    from .order import Order
+    from app.models.user import User
+    from app.models.order import Order
 
 
-def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-# -----------------------------
-# CASE / TICKET MODEL
-# -----------------------------
-
+# -----------------------------------------------------
+# CASE STATUS ENUM
+# -----------------------------------------------------
 class CaseStatus:
     OPEN = "open"
-    IN_PROGRESS = "in_progress"
-    RESOLVED = "resolved"
     CLOSED = "closed"
+    IN_PROGRESS = "in_progress"
 
 
-class SupportCase(BaseTable, table=True):
-    """Support or service ticket raised by a user"""
+# -----------------------------------------------------
+# SUPPORT CASE MODEL
+# -----------------------------------------------------
+class SupportCase(Base, BaseTableMixin):
     __tablename__ = "support_cases"
 
-    user_id: int = Field(foreign_key="users.id", index=True)
-    order_id: Optional[int] = Field(foreign_key="orders.id", index=True)
-    assigned_to_id: Optional[int] = Field(foreign_key="users.id", default=None, index=True)
-    subject: str = Field(max_length=255)
-    description: Optional[str] = Field(default=None, max_length=2000)
-    status: str = Field(default=CaseStatus.OPEN, index=True)
+    user_id = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    order_id = mapped_column(ForeignKey("orders.id"), nullable=True, index=True)
+
+    assigned_to_id = mapped_column(
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True,
+    )
+
+    subject = mapped_column(String(255), nullable=False)
+    description = mapped_column(String(2000), nullable=True)
+    status = mapped_column(String(50), default=CaseStatus.OPEN, nullable=False, index=True)
 
     # Relationships
-    user: "User" = Relationship(
+    user: Mapped["User"] = relationship(
+        "User",
         back_populates="cases_raised",
-        sa_relationship_kwargs={"lazy": "selectin", "foreign_keys": "[SupportCase.user_id]"},
+        lazy="selectin",
+        foreign_keys=[user_id],
     )
 
-    assigned_to: Optional["User"] = Relationship(
+    assigned_to: Mapped[Optional["User"]] = relationship(
+        "User",
         back_populates="cases_assigned",
-        sa_relationship_kwargs={"lazy": "selectin", "foreign_keys": "[SupportCase.assigned_to_id]"},
+        lazy="selectin",
+        foreign_keys=[assigned_to_id],
     )
 
-    order: Optional["Order"] = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
+    order: Mapped[Optional["Order"]] = relationship(
+        "Order",
+        lazy="selectin"
+    )
 
-    messages: List["CaseMessage"] = Relationship(
+    # Case messages (cascade delete)
+    messages: Mapped[List["CaseMessage"]] = relationship(
+        "CaseMessage",
         back_populates="case",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan", "lazy": "selectin"},
+        lazy="selectin",
+        cascade="all, delete-orphan",
     )
 
 
-# -----------------------------
+# -----------------------------------------------------
 # CASE MESSAGE MODEL
-# -----------------------------
-
-class CaseMessage(BaseTable, table=True):
-    """Messages exchanged in a case"""
+# -----------------------------------------------------
+class CaseMessage(Base, BaseTableMixin):
     __tablename__ = "case_messages"
 
-    case_id: int = Field(foreign_key="support_cases.id")
-    sender_id: int = Field(foreign_key="users.id")
-    message: str = Field(max_length=2000)
-    created_at: datetime = Field(default_factory=utcnow)
+    case_id = mapped_column(ForeignKey("support_cases.id"), nullable=False, index=True)
+    sender_id = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
 
-    case: "SupportCase" = Relationship(back_populates="messages")
-    sender: "User" = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
+    message = mapped_column(String(2000), nullable=False)
+    created_at = mapped_column(DateTime, default=utcnow, nullable=False)
 
+    case: Mapped["SupportCase"] = relationship(
+        "SupportCase",
+        back_populates="messages",
+        lazy="selectin"
+    )
 
-# -----------------------------
-# SCHEMAS
-# -----------------------------
-
-class CaseMessageCreate(SQLModel):
-    message: str
-
-
-class CaseMessageRead(BaseRead):
-    id: int
-    sender_id: int
-    message: str
-    created_at: datetime
-
-
-class SupportCaseCreate(SQLModel):
-    subject: str
-    description: Optional[str] = None
-    order_id: Optional[int] = None
-
-
-class SupportCaseUpdate(SQLModel):
-    status: Optional[str] = None
-    assigned_to_id: Optional[int] = None
-
-
-class SupportCaseRead(BaseRead):
-    id: int
-    user_id: int
-    order_id: Optional[int]
-    assigned_to_id: Optional[int]
-    subject: str
-    description: Optional[str]
-    status: str
-    messages: Optional[List[CaseMessageRead]] = None
+    sender: Mapped["User"] = relationship(
+        "User",
+        lazy="selectin"
+    )

@@ -25,13 +25,12 @@ export default function Inventory() {
                 <div className="col-span-12 space-y-6">
                     <InventoryMetrics refreshKey={refreshKey}/>
                 </div>
-                <div className="col-span-12 xl:col-span-8">
-                    <RecentInventoryMovements key={refreshKey}/>
-                </div>
-                <div className="col-span-12 xl:col-span-4">
+                <div className="col-span-12 xl:col-span-12">
                     <LowStockTable key={refreshKey}/>
                 </div>
-
+                <div className="col-span-12 xl:col-span-12">
+                    <RecentInventoryMovements key={refreshKey}/>
+                </div>
             </div>
         </>
     );

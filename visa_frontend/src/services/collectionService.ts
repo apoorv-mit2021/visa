@@ -23,18 +23,20 @@ export interface Collection extends CollectionBase {
     is_active: boolean;
     created_at: string;
     updated_at: string;
-    product_count: number;
+    show_on_landing?: boolean;
+    product_ids?: number[];
 }
 
 export interface CollectionCreate extends CollectionBase {
+    show_on_landing?: boolean;
     product_ids?: number[];
-    is_active?: boolean;
 }
 
 export interface CollectionUpdate {
     name?: string;
     description?: string;
     is_active?: boolean;
+    show_on_landing?: boolean;
     product_ids?: number[];
 }
 
@@ -54,9 +56,9 @@ export interface CollectionMetrics {
  */
 export async function listCollections(
     token: string,
-    params: { skip?: number; limit?: number; is_active?: boolean | null } = {}
+    params: { skip?: number; limit?: number; is_active?: boolean | null; search?: string } = {}
 ): Promise<Collection[]> {
-    const response = await axios.get(COLLECTIONS_URL + "/", {
+    const response = await axios.get(`${COLLECTIONS_URL}/`, {
         headers: {Authorization: `Bearer ${token}`},
         params,
     });
@@ -84,7 +86,7 @@ export async function createCollection(
     token: string,
     data: CollectionCreate
 ): Promise<Collection> {
-    const response = await axios.post(COLLECTIONS_URL + "/", data, {
+    const response = await axios.post(`${COLLECTIONS_URL}/`, data, {
         headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -164,9 +166,7 @@ export async function clearCollectionProducts(
 /**
  * 📊 Get Collection Metrics
  */
-export async function getCollectionMetrics(
-    token: string
-): Promise<CollectionMetrics> {
+export async function getCollectionMetrics(token: string): Promise<CollectionMetrics> {
     const response = await axios.get(`${COLLECTIONS_URL}/metrics/`, {
         headers: {Authorization: `Bearer ${token}`},
     });

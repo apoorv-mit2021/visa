@@ -421,8 +421,6 @@ export default function CustomerTable({refreshKey = 0, onView}: {
                                             ) : (
                                                 <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{c.full_name || "—"}</p>
                                             )}
-                                            <span
-                                                className="text-gray-500 text-theme-xs dark:text-gray-400">ID: {c.id}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell

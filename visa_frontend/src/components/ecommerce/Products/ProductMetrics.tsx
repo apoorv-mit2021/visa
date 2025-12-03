@@ -105,13 +105,13 @@ export default function ProductMetrics({refreshKey = 0}: { refreshKey?: number }
                 <div className="flex items-end justify-between mt-5">
                     <div>
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Total Variants
+              Inactive Products
             </span>
                         <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">
-                            {metrics.total_variants}
+                            {metrics.inactive_products}
                         </h4>
                     </div>
-                    <Badge color="info">Variants</Badge>
+                    <Badge color="info">Inactive</Badge>
                 </div>
             </div>
 
@@ -127,7 +127,7 @@ export default function ProductMetrics({refreshKey = 0}: { refreshKey?: number }
               Low Stock Products
             </span>
                         <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">
-                            {metrics.low_stock}
+                            {metrics.low_stock_products}
                         </h4>
                     </div>
                     <Badge color="error">Low</Badge>

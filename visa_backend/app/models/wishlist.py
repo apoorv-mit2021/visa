@@ -1,48 +1,45 @@
-from typing import Optional, List
-from sqlmodel import SQLModel, Field, Relationship
-from .base import BaseTable, BaseRead
-from .user import User
-from .product_variant import ProductVariant
+# app/models/wishlist.py
+
+from __future__ import annotations
+
+from typing import List, TYPE_CHECKING
+
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, BaseTableMixin
+
+if TYPE_CHECKING:
+    from app.models.user import User
+    from app.models.catalog import Product
 
 
-class Wishlist(BaseTable, table=True):
-    """User wishlist (favorite products)"""
+# -----------------------------------------------------
+# WISHLIST MODEL
+# -----------------------------------------------------
+class Wishlist(Base, BaseTableMixin):
     __tablename__ = "wishlists"
 
-    user_id: int = Field(foreign_key="users.id", index=True, unique=True)
-    user: User = Relationship(back_populates="wishlist")
+    user_id = mapped_column(ForeignKey("users.id"), unique=True, nullable=False, index=True)
 
-    items: List["WishlistItem"] = Relationship(
+    user: Mapped["User"] = relationship("User", back_populates="wishlist", lazy="selectin")
+
+    items: Mapped[List["WishlistItem"]] = relationship(
+        "WishlistItem",
         back_populates="wishlist",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan", "lazy": "selectin"},
+        lazy="selectin",
+        cascade="all, delete-orphan",
     )
 
 
-class WishlistItem(BaseTable, table=True):
-    """Wishlist items (no quantity, variant-based)"""
+# -----------------------------------------------------
+# WISHLIST ITEM MODEL
+# -----------------------------------------------------
+class WishlistItem(Base, BaseTableMixin):
     __tablename__ = "wishlist_items"
 
-    wishlist_id: int = Field(foreign_key="wishlists.id", index=True)
-    variant_id: int = Field(foreign_key="product_variants.id", index=True)
+    wishlist_id = mapped_column(ForeignKey("wishlists.id"), index=True, nullable=False)
+    product_id = mapped_column(ForeignKey("products.id"), index=True, nullable=False)
 
-    wishlist: Wishlist = Relationship(back_populates="items")
-    variant: ProductVariant = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
-
-
-# -----------------------------
-# Schemas
-# -----------------------------
-class WishlistItemCreate(SQLModel):
-    variant_id: int
-
-
-class WishlistItemRead(BaseRead):
-    id: int
-    variant_id: int
-    variant: Optional[ProductVariant] = None
-
-
-class WishlistRead(BaseRead):
-    id: int
-    user_id: int
-    items: Optional[List[WishlistItemRead]] = None
+    wishlist: Mapped["Wishlist"] = relationship("Wishlist", back_populates="items", lazy="selectin")
+    product: Mapped["Product"] = relationship("Product", lazy="selectin")

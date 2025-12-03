@@ -2,16 +2,27 @@ import {useEffect, useMemo, useRef, useState} from "react";
 import {Table, TableBody, TableCell, TableHeader, TableRow} from "../../ui/table";
 import Badge from "../../ui/badge/Badge.tsx";
 import {listOrders, type Order} from "../../../services/orderService";
+import {getCustomer, type Customer} from "../../../services/customerService";
 import {toast} from "sonner";
 import {Dropdown} from "../../ui/dropdown/Dropdown.tsx";
 import {DropdownItem} from "../../ui/dropdown/DropdownItem.tsx";
 import {useDropdownPosition} from "../../../hooks/useDropdownPosition";
-import {EyeIcon} from "../../../icons";
+import { MoreVertical } from "lucide-react";
 
 // Sorting keys for orders
  type SortKey = "id" | "user_id" | "status" | "total" | "created_at";
 
- export default function OrderTable({refreshKey = 0, onView}: { refreshKey?: number; onView?: (order: Order) => void }) {
+ export default function OrderTable({
+    refreshKey = 0,
+    onView,
+    onEdit,
+    onViewCustomer,
+ }: {
+    refreshKey?: number;
+    onView?: (order: Order) => void;
+    onEdit?: (order: Order) => void;
+    onViewCustomer?: (customer: Customer) => void;
+ }) {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
@@ -20,6 +31,13 @@ import {EyeIcon} from "../../../icons";
     const [currentPage, setCurrentPage] = useState(1);
     const rowsPerPage = 6;
     const token = localStorage.getItem("token") || "";
+    const [customerNames, setCustomerNames] = useState<Record<number, string>>({});
+
+    // Row action dropdown state (modeled after CollectionTable)
+    const [openActionId, setOpenActionId] = useState<number | null>(null);
+    const closeAction = () => setOpenActionId(null);
+    const { position, calculatePosition, isVisible, hideDropdown } = useDropdownPosition();
+    const buttonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
     // Status filter dropdown positioning (same pattern as CustomerTable)
     const {
@@ -36,7 +54,7 @@ import {EyeIcon} from "../../../icons";
         const fetchOrders = async () => {
             try {
                 setLoading(true);
-                const data = await listOrders(token, { limit: 200 });
+                const data = await listOrders(token);
                 setOrders(data);
             } catch (error) {
                 console.error(error);
@@ -47,6 +65,48 @@ import {EyeIcon} from "../../../icons";
         };
         fetchOrders();
     }, [token, refreshKey]);
+
+    // Fetch customer names for displayed orders' user_ids
+    useEffect(() => {
+        const fetchCustomerNames = async () => {
+            const ids = Array.from(
+                new Set(
+                    orders
+                        .map((o) => o.user_id)
+                        .filter((id): id is number => typeof id === "number")
+                )
+            );
+            const missing = ids.filter((id) => customerNames[id] === undefined);
+            if (missing.length === 0 || !token) return;
+
+            try {
+                const results = await Promise.all(
+                    missing.map(async (id) => {
+                        try {
+                            const customer = await getCustomer(token, id);
+                            return [id, customer.full_name] as const;
+                        } catch (err) {
+                            console.error("Failed to fetch customer", id, err);
+                            // Fallback to showing the ID as string if API fails
+                            return [id, String(id)] as const;
+                        }
+                    })
+                );
+
+                setCustomerNames((prev) => {
+                    const updated = {...prev};
+                    for (const [id, name] of results) {
+                        updated[id] = name;
+                    }
+                    return updated;
+                });
+            } catch (e) {
+                // noop, errors per-id handled above
+            }
+        };
+
+        if (orders.length > 0) fetchCustomerNames();
+    }, [orders, token]);
 
     const filteredData = useMemo(() => {
         let data = orders.filter((o) => {
@@ -118,7 +178,7 @@ import {EyeIcon} from "../../../icons";
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6">
             {/* Header */}
             <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Applications</h3>
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Orders</h3>
 
                 <div className="flex flex-wrap items-center gap-3">
                     <input
@@ -271,24 +331,113 @@ import {EyeIcon} from "../../../icons";
                                             <span className="text-gray-500 text-theme-xs dark:text-gray-400">ID: {o.id}</span>
                                         </div>
                                     </TableCell>
-                                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">{o.user_id ?? "—"}</TableCell>
                                     <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                                        <Badge size="sm" color={o.status === "completed" ? "success" : o.status === "pending" ? "warning" : "error"}>
-                                            {o.status || "—"}
-                                        </Badge>
+                                        {typeof o.user_id === "number" ? (
+                                            onViewCustomer ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        try {
+                                                            if (!token) {
+                                                                toast.error("Unauthorized. Please log in again.");
+                                                                return;
+                                                            }
+                                                            const customer = await getCustomer(token, o.user_id);
+                                                            onViewCustomer(customer);
+                                                        } catch (err) {
+                                                            console.error("Failed to open customer", o.user_id, err);
+                                                            toast.error("Failed to open customer details");
+                                                        }
+                                                    }}
+                                                    className="font-medium text-blue-600 text-theme-sm hover:underline dark:text-blue-400"
+                                                >
+                                                    {customerNames[o.user_id] ?? o.user_id}
+                                                </button>
+                                            ) : (
+                                                <span>{customerNames[o.user_id] ?? o.user_id}</span>
+                                            )
+                                        ) : (
+                                            "—"
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                                        {(() => {
+                                            // Map backend order statuses to badge colors
+                                            // Backend statuses: pending, paid, shipped, delivered, cancelled
+                                            const status = (o.status || "").toLowerCase();
+                                            const color: "primary" | "success" | "error" | "warning" | "info" | "light" | "dark" =
+                                                status === "pending"
+                                                    ? "warning"
+                                                    : status === "paid"
+                                                    ? "primary"
+                                                    : status === "shipped"
+                                                    ? "info"
+                                                    : status === "delivered"
+                                                    ? "success"
+                                                    : status === "cancelled"
+                                                    ? "error"
+                                                    : "light";
+                                            const label = status ? status.charAt(0).toUpperCase() + status.slice(1) : "—";
+                                            return (
+                                                <Badge size="sm" color={color}>
+                                                    {label}
+                                                </Badge>
+                                            );
+                                        })()}
                                     </TableCell>
                                     <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">{formatCurrency(o.total_amount)}</TableCell>
                                     <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">{new Date(o.created_at).toLocaleDateString()}</TableCell>
                                     <TableCell className="py-3 text-right">
-                                        <button
-                                            type="button"
-                                            onClick={() => onView?.(o)}
-                                            className="inline-flex items-center justify-center rounded-md p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800"
-                                            aria-label="View"
-                                            title="View details"
-                                        >
-                                            <EyeIcon className="size-5" />
-                                        </button>
+                                        <div className="relative inline-block">
+                                            <button
+                                                ref={(el) => {
+                                                    buttonRefs.current[o.id] = el;
+                                                }}
+                                                type="button"
+                                                className="dropdown-toggle"
+                                                onClick={() => {
+                                                    const button = buttonRefs.current[o.id];
+                                                    if (button) calculatePosition(button, 150, 100);
+                                                    setOpenActionId(openActionId === o.id ? null : o.id);
+                                                }}
+                                                aria-label="Actions"
+                                            >
+                                                <MoreVertical className="size-5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" />
+                                            </button>
+
+                                            {openActionId === o.id && isVisible && (
+                                                <Dropdown
+                                                    isOpen={true}
+                                                    onClose={() => {
+                                                        closeAction();
+                                                        hideDropdown();
+                                                    }}
+                                                    className="fixed z-50 w-36 p-2 bg-white shadow-lg dark:bg-gray-900 rounded-2xl"
+                                                    style={{ top: position.top, left: position.left }}
+                                                >
+                                                    <DropdownItem
+                                                        onItemClick={() => {
+                                                            onView?.(o);
+                                                            closeAction();
+                                                            hideDropdown();
+                                                        }}
+                                                        className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                                                    >
+                                                        View
+                                                    </DropdownItem>
+                                                    <DropdownItem
+                                                        onItemClick={() => {
+                                                            onEdit?.(o);
+                                                            closeAction();
+                                                            hideDropdown();
+                                                        }}
+                                                        className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                                                    >
+                                                        Edit
+                                                    </DropdownItem>
+                                                </Dropdown>
+                                            )}
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))

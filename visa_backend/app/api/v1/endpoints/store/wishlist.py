@@ -1,111 +1,74 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
-from typing import List
-from app.db import get_session
-from app.models import User, Wishlist, WishlistItem, WishlistItemCreate, WishlistRead, ProductVariant
-from app.core.deps import get_current_user
+# app/api/v1/endpoints/store/wishlist.py
+
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
+
+from app.core.deps import get_session, get_current_user
+from app.models.user import User
+from app.schemas.wishlist import (
+    WishlistRead,
+    WishlistItemCreate,
+)
+from app.services.wishlist_service import WishlistService
 
 router = APIRouter()
 
 
-# -----------------------------------------------------
-# 💖 GET WISHLIST
-# -----------------------------------------------------
+# ---------------------------------------------------------
+# GET MY WISHLIST
+# ---------------------------------------------------------
 @router.get("/", response_model=WishlistRead)
-def get_wishlist(
+def get_my_wishlist(
+        db: Session = Depends(get_session),
         current_user: User = Depends(get_current_user),
-        session: Session = Depends(get_session),
 ):
-    """Get or create the current user's wishlist"""
-    wishlist = session.exec(select(Wishlist).where(Wishlist.user_id == current_user.id)).first()
-    if not wishlist:
-        wishlist = Wishlist(user_id=current_user.id)
-        session.add(wishlist)
-        session.commit()
-        session.refresh(wishlist)
-    return wishlist
+    wishlist = WishlistService.get_wishlist(db, current_user.id)
+    return WishlistRead.model_validate(wishlist)
 
 
-# -----------------------------------------------------
-# ➕ ADD TO WISHLIST
-# -----------------------------------------------------
-@router.post("/add", response_model=WishlistRead, status_code=status.HTTP_201_CREATED)
+# ---------------------------------------------------------
+# ADD PRODUCT TO WISHLIST
+# ---------------------------------------------------------
+@router.post(
+    "/items",
+    response_model=WishlistRead,
+    status_code=status.HTTP_201_CREATED,
+)
 def add_to_wishlist(
-        item: WishlistItemCreate,
+        payload: WishlistItemCreate,
+        db: Session = Depends(get_session),
         current_user: User = Depends(get_current_user),
-        session: Session = Depends(get_session),
 ):
-    """Add a variant to the wishlist"""
-    wishlist = session.exec(select(Wishlist).where(Wishlist.user_id == current_user.id)).first()
-    if not wishlist:
-        wishlist = Wishlist(user_id=current_user.id)
-        session.add(wishlist)
-        session.commit()
-        session.refresh(wishlist)
-
-    variant = session.get(ProductVariant, item.variant_id)
-    if not variant or not variant.is_active:
-        raise HTTPException(status_code=404, detail="Variant not found or inactive")
-
-    existing = session.exec(
-        select(WishlistItem).where(
-            WishlistItem.wishlist_id == wishlist.id, WishlistItem.variant_id == item.variant_id
-        )
-    ).first()
-
-    if existing:
-        raise HTTPException(status_code=400, detail="Item already in wishlist")
-
-    session.add(WishlistItem(wishlist_id=wishlist.id, variant_id=item.variant_id))
-    session.commit()
-    session.refresh(wishlist)
-    return wishlist
+    wishlist = WishlistService.add_item(db, current_user.id, payload)
+    return WishlistRead.model_validate(wishlist)
 
 
-# -----------------------------------------------------
-# ❌ REMOVE ITEM
-# -----------------------------------------------------
-@router.delete("/remove/{variant_id}", response_model=WishlistRead)
-def remove_item(
-        variant_id: int,
+# ---------------------------------------------------------
+# REMOVE A PRODUCT FROM WISHLIST
+# ---------------------------------------------------------
+@router.delete(
+    "/items/{product_id}",
+    response_model=WishlistRead,
+    status_code=status.HTTP_200_OK,
+)
+def remove_from_wishlist(
+        product_id: int,
+        db: Session = Depends(get_session),
         current_user: User = Depends(get_current_user),
-        session: Session = Depends(get_session),
 ):
-    """Remove an item from the user's wishlist"""
-    wishlist = session.exec(select(Wishlist).where(Wishlist.user_id == current_user.id)).first()
-    if not wishlist:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
-
-    item = session.exec(
-        select(WishlistItem).where(
-            WishlistItem.wishlist_id == wishlist.id, WishlistItem.variant_id == variant_id
-        )
-    ).first()
-
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found in wishlist")
-
-    session.delete(item)
-    session.commit()
-    session.refresh(wishlist)
-    return wishlist
+    wishlist = WishlistService.remove_item(db, current_user.id, product_id)
+    return WishlistRead.model_validate(wishlist)
 
 
-# -----------------------------------------------------
-# 🧹 CLEAR WISHLIST
-# -----------------------------------------------------
-@router.delete("/clear", response_model=WishlistRead)
-def clear_wishlist(
+# ---------------------------------------------------------
+# CLEAR ENTIRE WISHLIST
+# ---------------------------------------------------------
+@router.delete(
+    "/", response_model=WishlistRead, status_code=status.HTTP_200_OK
+)
+def clear_my_wishlist(
+        db: Session = Depends(get_session),
         current_user: User = Depends(get_current_user),
-        session: Session = Depends(get_session),
 ):
-    """Remove all items from the user's wishlist"""
-    wishlist = session.exec(select(Wishlist).where(Wishlist.user_id == current_user.id)).first()
-    if not wishlist:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
-
-    for item in wishlist.items:
-        session.delete(item)
-    session.commit()
-    session.refresh(wishlist)
-    return wishlist
+    wishlist = WishlistService.clear_wishlist(db, current_user.id)
+    return WishlistRead.model_validate(wishlist)

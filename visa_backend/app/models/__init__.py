@@ -1,209 +1,64 @@
-from .base import BaseTable, BaseRead
-from .links import ProductCollectionLink
+# # app/models/__init__.py
 
-# 🛍 Product-related models
-from .product import (
-    Product,
-    ProductCreate,
-    ProductUpdate,
-    ProductRead,
-)
-from .product_variant import (
-    ProductVariant,
-    ProductVariantCreate,
-    ProductVariantUpdate,
-    ProductVariantRead,
-)
-from .product_price import (
-    ProductPrice,
-    ProductPriceCreate,
-    ProductPriceUpdate,
-    ProductPriceRead,
-)
-from .product_image import (
-    ProductImage,
-    ProductImageCreate,
-    ProductImageUpdate,
-    ProductImageRead,
-)
-from .product_attribute import (
-    ProductAttribute,
-    ProductAttributeCreate,
-    ProductAttributeUpdate,
-    ProductAttributeRead,
-)
-from .collection import (
-    Collection,
-    CollectionCreate,
-    CollectionUpdate,
-    CollectionRead,
-)
+from app.models.base import Base
 
-# 👤 User, Role & Permission models
-from .user import (
-    User,
-    UserCreate,
-    UserUpdate,
-    UserRead,
-    Role,
-    RoleRead,
-    Permission,
-    PermissionRead,
-    UserRoleLink,
-    RolePermissionLink,
-)
+# User + Role
+from app.models.user import User, Role
 
-# 🛒 Cart models
-from .cart import (
-    Cart,
-    CartItem,
-    CartItemCreate,
-    CartItemRead,
-    CartRead,
-)
+# Address
+from app.models.address import Address
 
-from .wishlist import (
-    Wishlist,
-    WishlistItem,
-    WishlistItemCreate,
-    WishlistItemRead,
-    WishlistRead,
-)
+# Catalog (Product + Collection)
+from app.models.catalog import Product, Collection, product_collection_table
 
-# 📦 Order models
-from .order import (
-    Order,
-    OrderItem,
-    OrderItemCreate,
-    OrderItemRead,
-    OrderCreate,
-    OrderRead,
-)
+# Cart & Wishlist
+from app.models.cart import Cart, CartItem
+from app.models.wishlist import Wishlist, WishlistItem
 
-# 🧰 Support / Cases
-from .case import (
-    SupportCase,
-    SupportCaseCreate,
-    SupportCaseUpdate,
-    SupportCaseRead,
-    CaseMessage,
-    CaseMessageCreate,
-    CaseMessageRead,
-)
+# Orders
+from app.models.order import Order, OrderItem
 
-# 🏠 Address models
-from .address import (
-    Address,
-    AddressCreate,
-    AddressUpdate,
-    AddressRead,
-)
+# Support Case
+from app.models.case import SupportCase, CaseMessage
 
-from .coupon import (
-    Coupon,
-    CouponCreate,
-    CouponUpdate,
-    CouponRead
-)
+# Inventory
+from app.models.inventory import Inventory
 
-from .inventory import (
-    Inventory
-)
+# Coupons
+from app.models.coupon import Coupon
 
 __all__ = [
-    # 🔹 Base
-    "BaseTable",
-    "BaseRead",
+    "Base",
 
-    # 🔹 Links
-    "ProductCollectionLink",
-    "UserRoleLink",
-    "RolePermissionLink",
-
-    # 🔹 Products
-    "Product",
-    "ProductCreate",
-    "ProductUpdate",
-    "ProductRead",
-
-    "ProductVariant",
-    "ProductVariantCreate",
-    "ProductVariantUpdate",
-    "ProductVariantRead",
-
-    "ProductPrice",
-    "ProductPriceCreate",
-    "ProductPriceUpdate",
-    "ProductPriceRead",
-
-    "ProductImage",
-    "ProductImageCreate",
-    "ProductImageUpdate",
-    "ProductImageRead",
-
-    "ProductAttribute",
-    "ProductAttributeCreate",
-    "ProductAttributeUpdate",
-    "ProductAttributeRead",
-
-    "Collection",
-    "CollectionCreate",
-    "CollectionUpdate",
-    "CollectionRead",
-
-    # 🔹 Users & Auth
+    # User & Role
     "User",
-    "UserCreate",
-    "UserUpdate",
-    "UserRead",
     "Role",
-    "RoleRead",
-    "Permission",
-    "PermissionRead",
 
-    # 🔹 Cart
+    # Address
+    "Address",
+
+    # Catalog
+    "Product",
+    "Collection",
+    "product_collection_table",
+
+    # Cart & Wishlist
     "Cart",
     "CartItem",
-    "CartItemCreate",
-    "CartItemRead",
-    "CartRead",
-
-    # 🔹 Wishlist
     "Wishlist",
     "WishlistItem",
-    "WishlistItemCreate",
-    "WishlistItemRead",
-    "WishlistRead",
 
-    # 🔹 Orders
+    # Orders
     "Order",
     "OrderItem",
-    "OrderItemCreate",
-    "OrderItemRead",
-    "OrderCreate",
-    "OrderRead",
 
-    # 🔹 Support / Cases
+    # Support Cases
     "SupportCase",
-    "SupportCaseCreate",
-    "SupportCaseUpdate",
-    "SupportCaseRead",
     "CaseMessage",
-    "CaseMessageCreate",
-    "CaseMessageRead",
 
-    # 🔹 Address
-    "Address",
-    "AddressCreate",
-    "AddressUpdate",
-    "AddressRead",
+    # Inventory
+    "Inventory",
 
-    # 🔹 Coupon
+    # Coupons
     "Coupon",
-    "CouponCreate",
-    "CouponUpdate",
-    "CouponRead",
-
-    # 🔹 Inventory
-    "Inventory"
 ]

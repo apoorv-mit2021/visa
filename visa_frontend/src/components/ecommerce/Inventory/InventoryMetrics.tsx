@@ -6,7 +6,7 @@ import {
 } from "../../../icons";
 import Badge from "../../ui/badge/Badge.tsx";
 import {getInventoryMetrics} from "../../../services/inventoryService";
-import type { InventoryMetrics as InventoryMetricsType } from "../../../services/inventoryService";
+import type {InventoryMetrics as InventoryMetricsType} from "../../../services/inventoryService";
 
 export default function InventoryMetrics({refreshKey = 0}: { refreshKey?: number }) {
     const [metrics, setMetrics] = useState<InventoryMetricsType | null>(null);
@@ -35,7 +35,7 @@ export default function InventoryMetrics({refreshKey = 0}: { refreshKey?: number
 
     if (loading || !metrics) {
         return (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-4 xl:grid-cols-6">
                 {[...Array(5)].map((_, i) => (
                     <div key={i}
                          className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 animate-pulse">
@@ -51,9 +51,10 @@ export default function InventoryMetrics({refreshKey = 0}: { refreshKey?: number
     }
 
     return (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-4 xl:grid-cols-4">
             {/* Total Products */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+            <div
+                className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
                 <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-xl dark:bg-gray-800">
                     <GroupIcon className="text-gray-800 size-6 dark:text-white/90"/>
                 </div>
@@ -66,22 +67,9 @@ export default function InventoryMetrics({refreshKey = 0}: { refreshKey?: number
                 </div>
             </div>
 
-            {/* Total Variants */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
-                <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-xl dark:bg-gray-800">
-                    <BoxIconLine className="text-gray-800 size-6 dark:text-white/90"/>
-                </div>
-                <div className="flex items-end justify-between mt-5">
-                    <div>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Total Variants</span>
-                        <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{metrics.total_variants}</h4>
-                    </div>
-                    <Badge color="info">Total</Badge>
-                </div>
-            </div>
-
             {/* Total Stock */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+            <div
+                className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
                 <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-xl dark:bg-gray-800">
                     <BoxIconLine className="text-gray-800 size-6 dark:text-white/90"/>
                 </div>
@@ -95,7 +83,8 @@ export default function InventoryMetrics({refreshKey = 0}: { refreshKey?: number
             </div>
 
             {/* Low Stock Items */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+            <div
+                className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
                 <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-xl dark:bg-gray-800">
                     <BoxIconLine className="text-gray-800 size-6 dark:text-white/90"/>
                 </div>
@@ -109,7 +98,8 @@ export default function InventoryMetrics({refreshKey = 0}: { refreshKey?: number
             </div>
 
             {/* Out of Stock Items */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+            <div
+                className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
                 <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-xl dark:bg-gray-800">
                     <BoxIconLine className="text-gray-800 size-6 dark:text-white/90"/>
                 </div>

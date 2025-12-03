@@ -2,6 +2,7 @@ import {useEffect, useState} from "react";
 import {getInventoryMovements, InventoryMovement} from "../../../services/inventoryService";
 import {Table, TableBody, TableCell, TableHeader, TableRow} from "../../ui/table";
 import Badge from "../../ui/badge/Badge";
+import {getStaff, Staff} from "../../../services/employeeService";
 
 interface Props {
     refreshKey?: number;
@@ -12,13 +13,53 @@ export default function RecentInventoryMovements({refreshKey = 0}: Props) {
     const [data, setData] = useState<InventoryMovement[]>([]);
     const [loading, setLoading] = useState(true);
     const [skip, setSkip] = useState(0);
+    const [staffById, setStaffById] = useState<Record<number, Staff>>({});
     const limit = 10;
 
     const fetchMovements = async () => {
         try {
             setLoading(true);
-            const result = await getInventoryMovements(token, {skip, limit});
+            const result = await getInventoryMovements(token, { offset: skip, limit });
             setData(result);
+
+            // Fetch and cache staff details for performed_by_id
+            const ids = Array.from(
+                new Set(
+                    result
+                        .map((m) => m.performed_by_id)
+                        .filter((id): id is number => typeof id === "number" && Number.isFinite(id))
+                )
+            );
+
+            const missingIds = ids.filter((id) => !staffById[id]);
+            if (missingIds.length > 0) {
+                try {
+                    const entries = await Promise.all(
+                        missingIds.map(async (id) => {
+                            try {
+                                const staff = await getStaff(token, id);
+                                return [id, staff] as const;
+                            } catch (e) {
+                                console.error("Failed to fetch staff:", id, e);
+                                return null;
+                            }
+                        })
+                    );
+
+                    const update: Record<number, Staff> = {};
+                    for (const item of entries) {
+                        if (item) {
+                            const [id, staff] = item;
+                            update[id] = staff;
+                        }
+                    }
+                    if (Object.keys(update).length > 0) {
+                        setStaffById((prev) => ({ ...prev, ...update }));
+                    }
+                } catch (e) {
+                    // Already logged per-item; no-op
+                }
+            }
         } catch (err) {
             console.error("Failed to fetch movements:", err);
         } finally {
@@ -52,7 +93,7 @@ export default function RecentInventoryMovements({refreshKey = 0}: Props) {
                         <TableHeader className="border-y border-gray-100 dark:border-gray-800">
                             <TableRow>
                                 <TableCell isHeader className="py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400 select-none">Date</TableCell>
-                                <TableCell isHeader className="py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400 select-none">Variant</TableCell>
+                                <TableCell isHeader className="py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400 select-none">Product</TableCell>
                                 <TableCell isHeader className="py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400 select-none">Change</TableCell>
                                 <TableCell isHeader className="py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400 select-none">Reason</TableCell>
                                 <TableCell isHeader className="py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400 select-none">Performed By</TableCell>
@@ -63,14 +104,18 @@ export default function RecentInventoryMovements({refreshKey = 0}: Props) {
                                 data.map((m) => (
                                     <TableRow key={m.id}>
                                         <TableCell className="py-3 text-theme-sm text-gray-500 dark:text-gray-400">{new Date(m.created_at).toLocaleString()}</TableCell>
-                                        <TableCell className="py-3 text-theme-sm text-gray-500 dark:text-gray-400">#{m.variant_id}</TableCell>
+                                        <TableCell className="py-3 text-theme-sm text-gray-500 dark:text-gray-400">#{m.product_id}</TableCell>
                                         <TableCell className="py-3 text-theme-sm text-gray-500 dark:text-gray-400">
                                             <Badge size="sm" color={m.change >= 0 ? "success" : "error"}>
                                                 {m.change > 0 ? `+${m.change}` : m.change}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="py-3 text-theme-sm text-gray-500 dark:text-gray-400 capitalize">{m.reason.replace("_", " ")}</TableCell>
-                                        <TableCell className="py-3 text-theme-sm text-gray-500 dark:text-gray-400">{m.performed_by_id ? `User ${m.performed_by_id}` : "System"}</TableCell>
+                                        <TableCell className="py-3 text-theme-sm text-gray-500 dark:text-gray-400">
+                                            {m.performed_by_id
+                                                ? (staffById[m.performed_by_id]?.full_name ?? `User #${m.performed_by_id}`)
+                                                : "System"}
+                                        </TableCell>
                                     </TableRow>
                                 ))
                             ) : (

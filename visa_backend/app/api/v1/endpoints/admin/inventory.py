@@ -1,98 +1,85 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select, func
-from typing import List, Optional
+# app/api/v1/endpoints/admin/inventory.py
 
-from app.db import get_session
-from app.models import Product, ProductVariant, User, Inventory
-from app.core.deps import get_current_user, require_admin
-from app.schemas.inventory import InventoryMovementRead
+from typing import List
+
+from fastapi import APIRouter, Depends, status, Query, HTTPException
+from sqlalchemy.orm import Session
+
+from app.core.deps import get_session, get_current_user, require_staff
+from app.models.user import User
+from app.schemas.inventory import InventoryCreate, InventoryRead
+from app.services.inventory_service import InventoryService
 
 router = APIRouter()
 
 
+# ---------------------------------------------------------
 # INVENTORY METRICS
+# ---------------------------------------------------------
 @router.get("/metrics/")
 def get_inventory_metrics(
-        session: Session = Depends(get_session),
+        db: Session = Depends(get_session),
         current_user: User = Depends(get_current_user),
 ):
-    require_admin(current_user)
-
-    total_variants = session.exec(select(func.count(ProductVariant.id))).one()
-    total_products = session.exec(select(func.count(Product.id))).one()
-    total_stock = session.exec(select(func.sum(ProductVariant.stock_quantity))).one() or 0
-    low_stock_items = session.exec(
-        select(func.count(ProductVariant.id)).where(ProductVariant.stock_quantity <= 10)
-    ).one()
-    out_of_stock_items = session.exec(
-        select(func.count(ProductVariant.id)).where(ProductVariant.stock_quantity == 0)
-    ).one()
-
-    return {
-        "total_products": total_products or 0,
-        "total_variants": total_variants or 0,
-        "total_stock": int(total_stock),
-        "low_stock_items": low_stock_items or 0,
-        "out_of_stock_items": out_of_stock_items or 0,
-    }
+    require_staff(current_user)
+    return InventoryService.get_inventory_metrics(db)
 
 
-# GLOBAL INVENTORY MOVEMENTS
-@router.get("/movements/", response_model=List[InventoryMovementRead])
+# ---------------------------------------------------------
+# LIST INVENTORY MOVEMENTS (LATEST FIRST)
+# ---------------------------------------------------------
+@router.get("/movements/", response_model=List[InventoryRead])
 def list_inventory_movements(
-        session: Session = Depends(get_session),
+        db: Session = Depends(get_session),
         current_user: User = Depends(get_current_user),
-        skip: int = Query(0, ge=0),
-        limit: int = Query(50, ge=1, le=1000),
+        limit: int = Query(50, ge=1, le=200),
+        offset: int = Query(0, ge=0),
 ):
-    require_admin(current_user)
+    require_staff(current_user)
 
-    query = (
-        select(Inventory)
-        .order_by(Inventory.created_at.desc())
-        .offset(skip)
-        .limit(limit)
+    movements = InventoryService.list_movements(
+        db=db,
+        limit=limit,
+        offset=offset,
     )
 
-    movements = session.exec(query).all()
-    return movements
+    return [InventoryRead.model_validate(m) for m in movements]
 
 
-# LOW-STOCK PRODUCT VARIANTS
+# ---------------------------------------------------------
+# CREATE INVENTORY MOVEMENT (ADMIN)
+# ---------------------------------------------------------
+@router.post("/", response_model=InventoryRead, status_code=status.HTTP_201_CREATED)
+def create_inventory_entry(
+        payload: InventoryCreate,
+        db: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user),
+):
+    require_staff(current_user)
+
+    # Auto bind admin as performer
+    payload.performed_by_id = current_user.id
+
+    movement = InventoryService.create_movement(db, payload)
+
+    return InventoryRead.model_validate(movement)
+
+
+# ---------------------------------------------------------
+# LOW STOCK PRODUCTS (PER-SIZE)
+# ---------------------------------------------------------
 @router.get("/low-stock/")
-def list_low_stock_variants(
-        session: Session = Depends(get_session),
+def list_low_stock_products(
+        db: Session = Depends(get_session),
         current_user: User = Depends(get_current_user),
-        skip: int = Query(0, ge=0),
-        limit: int = Query(100, ge=1, le=1000),
-        threshold: int = Query(10, ge=1),
+        threshold: int = Query(5, ge=1),
 ):
-    require_admin(current_user)
+    require_staff(current_user)
 
-    query = (
-        select(ProductVariant)
-        .where(ProductVariant.stock_quantity <= threshold)
-        .order_by(ProductVariant.stock_quantity.asc())
-        .offset(skip)
-        .limit(limit)
+    low_stock = InventoryService.get_low_stock_products(
+        db=db,
+        threshold=threshold
     )
 
-    variants = session.exec(query).all()
-
-    results = []
-    for v in variants:
-        p = v.product
-        results.append({
-            "product_id": p.id,
-            "product_name": p.name,
-            "category": p.category,
-            "is_active": p.is_active,
-            "variant_id": v.id,
-            "variant_name": v.name,
-            "sku": v.sku,
-            "stock_quantity": v.stock_quantity,
-            "threshold": threshold,
-            "is_default": v.is_default,
-        })
-
-    return results
+    # Service already returns dicts → safe to output directly
+    return low_stock

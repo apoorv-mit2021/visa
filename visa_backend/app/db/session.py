@@ -1,27 +1,41 @@
 # app/db/session.py
 
-from sqlmodel import create_engine, Session, SQLModel
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 import os
 
-# ✅ Import base to register models before table creation
-from app.db import base  # noqa
+# ✅ Import Base so SQLAlchemy registers all models before table creation
+from app.models.base import Base  # noqa
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ecommerce.db")
 
+# Create SQLAlchemy engine
 engine = create_engine(
     DATABASE_URL,
     echo=os.getenv("DB_ECHO", "false").lower() == "true",
     pool_pre_ping=True,
+    future=True,
+)
+
+# SessionLocal factory
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    future=True,
 )
 
 
 def create_db_and_tables() -> None:
-    """Create database tables"""
-    SQLModel.metadata.create_all(engine)
+    """Create database tables using SQLAlchemy metadata."""
+    Base.metadata.create_all(bind=engine)
 
 
 def get_session() -> Generator[Session, None, None]:
-    """Dependency to get database session"""
-    with Session(engine) as session:
-        yield session
+    """FastAPI dependency for DB session."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

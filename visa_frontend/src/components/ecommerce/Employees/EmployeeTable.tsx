@@ -39,6 +39,14 @@ export default function EmployeeTable({refreshKey = 0, onView, onEdit}: { refres
         fetchStaff();
     }, [token, refreshKey]);
 
+    // Helper: normalize role objects or strings to displayable names
+    const getRoleNames = (roles: unknown): string[] => {
+        if (!Array.isArray(roles)) return [];
+        return roles
+            .map((r: any) => (typeof r === "string" ? r : r?.name))
+            .filter((v: any): v is string => typeof v === "string" && v.trim().length > 0);
+    };
+
     // Filter and sort logic
     const filteredData = useMemo(() => {
         let data = staffList.filter((s) => {
@@ -46,7 +54,7 @@ export default function EmployeeTable({refreshKey = 0, onView, onEdit}: { refres
             const matchesSearch =
                 s.full_name?.toLowerCase().includes(q) ||
                 s.email.toLowerCase().includes(q) ||
-                s.roles?.some((r) => r.name.toLowerCase().includes(q));
+                getRoleNames(s.roles).some((role) => role.toLowerCase().includes(q));
 
             const matchesStatus =
                 statusFilter === "All" ||
@@ -311,7 +319,10 @@ export default function EmployeeTable({refreshKey = 0, onView, onEdit}: { refres
                                         {staff.email}
                                     </TableCell>
                                     <TableCell className="py-3 text-gray-500 dark:text-gray-400">
-                                        {staff.roles?.map((r) => r.name).join(", ") || "—"}
+                                        {(() => {
+                                            const roleNames = getRoleNames(staff.roles);
+                                            return roleNames.length ? roleNames.join(", ") : "—";
+                                        })()}
                                     </TableCell>
                                     <TableCell className="py-3">
                                         <Badge

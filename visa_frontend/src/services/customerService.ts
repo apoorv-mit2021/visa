@@ -28,6 +28,12 @@ export interface CustomerMetrics {
     avg_orders_per_client: number;
 }
 
+// Admin-only updates for clients (matches backend schema)
+export interface CustomerAdminUpdatePayload {
+    is_active?: boolean;
+    is_verified?: boolean;
+}
+
 // -----------------------------
 // HELPERS
 // -----------------------------
@@ -85,6 +91,25 @@ export async function getCustomerMetrics(
 ): Promise<CustomerMetrics> {
     const response = await axios.get<CustomerMetrics>(
         `${CLIENT_URL}/metrics/`,
+        getAuthHeaders(token)
+    );
+    return response.data;
+}
+
+/**
+ * ✏️ Update a customer (admin-only)
+ * Backend: PUT /admin/client/{client_id}
+ * Only accepts is_active and/or is_verified.
+ */
+export async function updateCustomerAdmin(
+    token: string,
+    id: number,
+    data: CustomerAdminUpdatePayload
+): Promise<Customer> {
+    const response = await axios.put<Customer>(
+        `${CLIENT_URL}/${id}`,
+        // Axios omits undefined keys; backend uses exclude_unset
+        data,
         getAuthHeaders(token)
     );
     return response.data;

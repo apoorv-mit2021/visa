@@ -1,4 +1,6 @@
 import axios from "axios";
+import {SupportCase} from "./caseService.ts";
+import {LowStockProduct} from "./inventoryService.ts";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 const DASHBOARD_URL = `${API_BASE_URL}/admin/dashboard`;
@@ -34,16 +36,6 @@ export interface Order {
     user_id?: number;
 }
 
-export interface LowStockItem {
-    product_id: number;
-    product_name: string;
-    variant_id: number;
-    variant_name: string | null;
-    sku: string;
-    stock_quantity: number;
-    category: string;
-    is_active: boolean;
-}
 
 export interface StatisticsChart {
     labels: string[];
@@ -107,11 +99,12 @@ export async function getRecentOrders(token: string): Promise<Order[]> {
     return data;
 }
 
+
 /**
  * 5️⃣ Get low-stock products (lowest 5 variants)
  */
-export async function getLowStockProducts(token: string): Promise<LowStockItem[]> {
-    const {data} = await axios.get<LowStockItem[]>(
+export async function getLowStockProducts(token: string): Promise<LowStockProduct[]> {
+    const {data} = await axios.get<LowStockProduct[]>(
         `${DASHBOARD_URL}/products/low-stock`,
         getAuthHeaders(token)
     );
@@ -124,6 +117,17 @@ export async function getLowStockProducts(token: string): Promise<LowStockItem[]
 export async function getSalesRevenueStatistics(token: string): Promise<StatisticsChart> {
     const {data} = await axios.get<StatisticsChart>(
         `${DASHBOARD_URL}/statistics`,
+        getAuthHeaders(token)
+    );
+    return data;
+}
+
+/**
+ * 6️⃣ Get recent open tickets
+ */
+export async function getRecentCases(token: string): Promise<SupportCase[]> {
+    const {data} = await axios.get<SupportCase[]>(
+        `${DASHBOARD_URL}/support/recent`,
         getAuthHeaders(token)
     );
     return data;

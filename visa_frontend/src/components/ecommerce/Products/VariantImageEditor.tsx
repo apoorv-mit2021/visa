@@ -1,8 +1,15 @@
 // src/components/products/VariantImageEditor.tsx
 import React, {useMemo, useRef, useState} from "react";
 import Label from "../../../components/form/Label";
-import {AdminProductImage, AdminProductVariant} from "../../../services/productService";
-import axios from "axios";
+import {
+    AdminProductImage,
+    AdminProductVariant,
+    uploadVariantImage,
+    updateProductImageMetadata,
+    replaceProductImageFile,
+    deleteProductImage,
+    buildMediaUrl
+} from "../../../services/productService";
 
 interface Props {
     variant: AdminProductVariant | any;
@@ -12,7 +19,7 @@ interface Props {
     variantIndex?: number;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+// Using service functions from productService
 
 export default function VariantImageEditor({variant, disabled = false, setVariants, variantIndex}: Props) {
     const [file, setFile] = useState<File | null>(null);
@@ -20,6 +27,13 @@ export default function VariantImageEditor({variant, disabled = false, setVarian
     const [error, setError] = useState<string | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
     const inputRef = useRef<HTMLInputElement | null>(null);
+    const [busyImageIds, setBusyImageIds] = useState<Record<number, boolean>>({});
+    const [editState, setEditState] = useState<Record<number, {
+        alt_text?: string | null;
+        display_order?: number | null;
+        is_active?: boolean | null;
+    }>>({});
+    const [replaceFiles, setReplaceFiles] = useState<Record<number, File | null>>({});
 
     const hasId = Boolean(variant?.id);
 
@@ -45,25 +59,14 @@ export default function VariantImageEditor({variant, disabled = false, setVarian
             return;
         }
 
-        const fd = new FormData();
-        fd.append("file", file);
-        // You can append other form fields (alt_text, is_primary, display_order, is_active) if you want:
-        // fd.append("alt_text", "...");
-        // fd.append("is_primary", "false");
-
         setUploading(true);
         setError(null);
 
         try {
-            const res = await axios.post<AdminProductImage>(
-                `${API_BASE_URL}/admin/products/variants/${variant.id}/images`,
-                fd,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "multipart/form-data",
-                    },
-                }
+            const res: AdminProductImage = await uploadVariantImage(
+                token,
+                variant.id,
+                file
             );
 
             // Append newly created image into the variant in parent state if setter provided
@@ -72,7 +75,7 @@ export default function VariantImageEditor({variant, disabled = false, setVarian
                     const copy = [...prev];
                     copy[variantIndex] = {
                         ...(copy[variantIndex] || {}),
-                        images: [...((copy[variantIndex]?.images) || []), res.data],
+                        images: [...((copy[variantIndex]?.images) || []), res],
                     };
                     return copy;
                 });
@@ -92,6 +95,152 @@ export default function VariantImageEditor({variant, disabled = false, setVarian
     const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
     const clearDrag = () => setIsDragOver(false);
 
+    const setImageBusy = (id: number, v: boolean) => setBusyImageIds(prev => ({...prev, [id]: v}));
+
+    const updateImageInState = (updated: AdminProductImage) => {
+        if (!setVariants || typeof variantIndex !== "number") return;
+        setVariants(prev => {
+            const copy = [...prev];
+            const images: AdminProductImage[] = [...(copy[variantIndex]?.images || [])];
+            const idx = images.findIndex(i => i.id === updated.id);
+            let next = images;
+            if (idx >= 0) {
+                next = [...images];
+                next[idx] = updated;
+            }
+            // If this updated image is primary, unset primary from others locally too
+            if (updated.is_primary) {
+                next = next.map(i => i.id === updated.id ? updated : ({...i, is_primary: false}));
+            }
+            copy[variantIndex] = {
+                ...(copy[variantIndex] || {}),
+                images: next,
+            };
+            return copy;
+        });
+    };
+
+    const removeImageFromState = (imageId: number) => {
+        if (!setVariants || typeof variantIndex !== "number") return;
+        setVariants(prev => {
+            const copy = [...prev];
+            const images: AdminProductImage[] = [...(copy[variantIndex]?.images || [])];
+            const next = images.filter(i => i.id !== imageId);
+            copy[variantIndex] = {
+                ...(copy[variantIndex] || {}),
+                images: next,
+            };
+            return copy;
+        });
+    };
+
+    const onEditChange = (id: number, key: "alt_text" | "display_order" | "is_active", value: any) => {
+        setEditState(prev => ({
+            ...prev,
+            [id]: {
+                ...(prev[id] || {}),
+                [key]: value,
+            },
+        }));
+    };
+
+    const saveMetadata = async (img: AdminProductImage) => {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            setError("Unauthorized. Please log in.");
+            return;
+        }
+        const changes = editState[img.id] || {};
+        if (!("alt_text" in changes) && !("display_order" in changes) && !("is_active" in changes)) return;
+        try {
+            setImageBusy(img.id, true);
+            const updated = await updateProductImageMetadata(token, img.id, {
+                alt_text: changes.alt_text ?? undefined,
+                display_order: (changes.display_order as number | null | undefined) ?? undefined,
+                is_active: changes.is_active ?? undefined,
+            });
+            updateImageInState(updated);
+        } catch (e: any) {
+            setError(e?.response?.data?.detail || e.message || "Failed to update metadata");
+        } finally {
+            setImageBusy(img.id, false);
+        }
+    };
+
+    const makePrimary = async (img: AdminProductImage) => {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            setError("Unauthorized. Please log in.");
+            return;
+        }
+        try {
+            setImageBusy(img.id, true);
+            const updated = await updateProductImageMetadata(token, img.id, {is_primary: true});
+            // Backend unsets others; locally unset others too
+            updateImageInState(updated);
+        } catch (e: any) {
+            setError(e?.response?.data?.detail || e.message || "Failed to set primary");
+        } finally {
+            setImageBusy(img.id, false);
+        }
+    };
+
+    const toggleActive = async (img: AdminProductImage) => {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            setError("Unauthorized. Please log in.");
+            return;
+        }
+        try {
+            setImageBusy(img.id, true);
+            const updated = await updateProductImageMetadata(token, img.id, {is_active: !img.is_active});
+            updateImageInState(updated);
+        } catch (e: any) {
+            setError(e?.response?.data?.detail || e.message || "Failed to toggle active");
+        } finally {
+            setImageBusy(img.id, false);
+        }
+    };
+
+    const onReplaceFilePicked = (id: number, f: File | null) => setReplaceFiles(prev => ({...prev, [id]: f}));
+
+    const replaceFile = async (img: AdminProductImage) => {
+        const token = localStorage.getItem("token");
+        const f = replaceFiles[img.id];
+        if (!token) {
+            setError("Unauthorized. Please log in.");
+            return;
+        }
+        if (!f) return;
+        try {
+            setImageBusy(img.id, true);
+            const updated = await replaceProductImageFile(token, img.id, f);
+            updateImageInState(updated);
+            onReplaceFilePicked(img.id, null);
+        } catch (e: any) {
+            setError(e?.response?.data?.detail || e.message || "Failed to replace file");
+        } finally {
+            setImageBusy(img.id, false);
+        }
+    };
+
+    const removeImage = async (img: AdminProductImage) => {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            setError("Unauthorized. Please log in.");
+            return;
+        }
+        try {
+            setImageBusy(img.id, true);
+            await deleteProductImage(token, img.id);
+            removeImageFromState(img.id);
+        } catch (e: any) {
+            setError(e?.response?.data?.detail || e.message || "Failed to delete image");
+        } finally {
+            setImageBusy(img.id, false);
+        }
+    };
+
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -104,15 +253,80 @@ export default function VariantImageEditor({variant, disabled = false, setVarian
             {/* existing images */}
             <div className="flex gap-3 overflow-x-auto pb-1">
                 {(variant?.images || []).map((img: AdminProductImage, idx: number) => (
-                    <div key={idx} className="flex flex-col items-center text-xs">
+                    <div key={img.id ?? idx} className="flex flex-col items-stretch text-xs min-w-[12rem]">
                         <div className={`relative rounded-md overflow-hidden ring-1 ${img.is_primary ? "ring-blue-500" : "ring-gray-200 dark:ring-gray-700"}`}>
-                            <img src={img.image_url} alt={img.alt_text || "img"}
-                                 className="w-20 h-20 object-cover"/>
+                            <img src={buildMediaUrl(img.image_url)} alt={img.alt_text || "img"}
+                                 className="w-48 h-32 object-cover"/>
                             {img.is_primary && (
                                 <span className="absolute top-1 left-1 bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded">Primary</span>
                             )}
                         </div>
-                        {img.alt_text && <span className="mt-1 text-gray-500 truncate max-w-[5rem]" title={img.alt_text}>{img.alt_text}</span>}
+                        <div className="mt-2 grid grid-cols-2 gap-1 items-center">
+                            <input
+                                className="col-span-2 rounded border px-2 py-1 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700"
+                                placeholder="Alt text"
+                                defaultValue={img.alt_text || ""}
+                                onChange={(e) => onEditChange(img.id, "alt_text", e.target.value)}
+                                disabled={disabled || busyImageIds[img.id]}
+                            />
+                            <input
+                                className="rounded border px-2 py-1 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700"
+                                placeholder="Order"
+                                type="number"
+                                defaultValue={img.display_order}
+                                onChange={(e) => onEditChange(img.id, "display_order", Number(e.target.value))}
+                                disabled={disabled || busyImageIds[img.id]}
+                            />
+                            <label className="inline-flex items-center gap-1 text-[11px]">
+                                <input
+                                    type="checkbox"
+                                    defaultChecked={img.is_active}
+                                    onChange={(e) => onEditChange(img.id, "is_active", e.target.checked)}
+                                    disabled={disabled || busyImageIds[img.id]}
+                                />
+                                Active
+                            </label>
+                            <div className="col-span-2 flex gap-2 mt-1">
+                                <button type="button"
+                                        onClick={() => saveMetadata(img)}
+                                        disabled={disabled || busyImageIds[img.id]}
+                                        className="px-2 py-1 rounded border bg-white dark:bg-gray-800 text-[11px] border-gray-300 dark:border-gray-700 hover:bg-gray-50">
+                                    Save
+                                </button>
+                                <button type="button"
+                                        onClick={() => makePrimary(img)}
+                                        disabled={disabled || busyImageIds[img.id] || img.is_primary}
+                                        className="px-2 py-1 rounded border bg-white dark:bg-gray-800 text-[11px] border-gray-300 dark:border-gray-700 hover:bg-gray-50">
+                                    Make Primary
+                                </button>
+                                <button type="button"
+                                        onClick={() => toggleActive(img)}
+                                        disabled={disabled || busyImageIds[img.id]}
+                                        className="px-2 py-1 rounded border bg-white dark:bg-gray-800 text-[11px] border-gray-300 dark:border-gray-700 hover:bg-gray-50">
+                                    {img.is_active ? "Deactivate" : "Activate"}
+                                </button>
+                                <button type="button"
+                                        onClick={() => removeImage(img)}
+                                        disabled={disabled || busyImageIds[img.id]}
+                                        className="px-2 py-1 rounded border border-red-300 bg-red-50 text-red-700 text-[11px] hover:bg-red-100">
+                                    Delete
+                                </button>
+                            </div>
+                            <div className="col-span-2 flex items-center gap-2 mt-1">
+                                <input type="file"
+                                       accept="image/*"
+                                       onChange={(e) => onReplaceFilePicked(img.id, e.target.files?.[0] ?? null)}
+                                       disabled={disabled || busyImageIds[img.id]}
+                                       className="text-[11px]"
+                                />
+                                <button type="button"
+                                        onClick={() => replaceFile(img)}
+                                        disabled={disabled || busyImageIds[img.id] || !replaceFiles[img.id]}
+                                        className="px-2 py-1 rounded border bg-white dark:bg-gray-800 text-[11px] border-gray-300 dark:border-gray-700 hover:bg-gray-50">
+                                    Replace
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 ))}
                 {(!variant?.images || variant.images.length === 0) && (

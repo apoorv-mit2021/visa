@@ -7,10 +7,9 @@ const INVENTORY_URL = `${API_BASE_URL}/admin/inventory`;
 // TYPES
 // ---------------------------------------------
 
-// Inventory movement log (audit trail)
 export interface InventoryMovement {
     id: number;
-    variant_id: number;
+    product_id: number;
     previous_quantity: number;
     change: number;
     new_quantity: number;
@@ -20,27 +19,20 @@ export interface InventoryMovement {
     created_at: string;
 }
 
-// Inventory metrics summary
 export interface InventoryMetrics {
     total_products: number;
-    total_variants: number;
     total_stock: number;
     low_stock_items: number;
     out_of_stock_items: number;
 }
 
-// Low-stock variant summary
-export interface LowStockVariant {
-    product_id: number;
-    product_name: string;
-    category: string | null;
-    is_active: boolean;
-    variant_id: number;
-    variant_name: string | null;
+export interface LowStockProduct {
+    id: number;
+    name: string;
     sku: string;
-    stock_quantity: number;
-    threshold: number;
-    is_default: boolean;
+    category: string | null;
+    low_sizes: Record<string, number>;
+    total_stock: number;
 }
 
 // ---------------------------------------------
@@ -57,7 +49,7 @@ const getAuthHeaders = (token: string) => ({
 // ---------------------------------------------
 
 /**
- * 📊 1. Get inventory metrics
+ * 1️⃣ Get inventory metrics
  */
 export const getInventoryMetrics = async (
     token: string
@@ -70,11 +62,11 @@ export const getInventoryMetrics = async (
 };
 
 /**
- * 📜 2. Get global inventory movement logs (latest first)
+ * 2️⃣ Get inventory movement logs
  */
 export const getInventoryMovements = async (
     token: string,
-    params?: { skip?: number; limit?: number }
+    params?: { limit?: number; offset?: number }
 ): Promise<InventoryMovement[]> => {
     const {data} = await axios.get<InventoryMovement[]>(
         `${INVENTORY_URL}/movements/`,
@@ -87,13 +79,13 @@ export const getInventoryMovements = async (
 };
 
 /**
- * 🟠 3. Get low-stock product variants (paginated)
+ * 3️⃣ Get low-stock products (per-size)
  */
-export const getLowStockVariants = async (
+export const getLowStockProducts = async (
     token: string,
-    params?: { skip?: number; limit?: number; threshold?: number }
-): Promise<LowStockVariant[]> => {
-    const {data} = await axios.get<LowStockVariant[]>(
+    params?: { threshold?: number }
+): Promise<LowStockProduct[]> => {
+    const {data} = await axios.get<LowStockProduct[]>(
         `${INVENTORY_URL}/low-stock/`,
         {
             ...getAuthHeaders(token),

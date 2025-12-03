@@ -55,7 +55,7 @@ export default function Collections() {
     // Submit handler
     const handleSubmit = async (
         data:
-            | { name: string; description?: string; is_active?: boolean }
+            | { name: string; description?: string; is_active?: boolean; product_ids?: number[] }
             | { id: number; data: any }
     ) => {
         if (!token) {
@@ -67,7 +67,7 @@ export default function Collections() {
             setIsSubmitting(true);
 
             if (mode === "create") {
-                const payload = data as { name: string; description?: string; is_active?: boolean };
+                const payload = data as { name: string; description?: string; is_active?: boolean; product_ids?: number[] };
                 await createCollection(token, payload);
                 toast.success("Collection created!");
             } else {
@@ -107,10 +107,10 @@ export default function Collections() {
                 onClose={closeModal}
                 title={
                     mode === "create"
-                        ? "Create Country"
+                        ? "Create Collection"
                         : mode === "edit"
-                            ? "Edit Country"
-                            : "Country Details"
+                            ? "Edit Collection"
+                            : "Collection Details"
                 }
             >
                 <CollectionForm

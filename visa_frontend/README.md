@@ -1,7 +1,6 @@
-# Visa Management System
+# AURI Jewelry — Admin Dashboard
 
-A minimal React + TypeScript + Tailwind CSS dashboard for managing end-to-end visa operations, including applications,
-documents, payments, appointments, pricing, and workflow configuration.
+A minimal React + TypeScript + Tailwind CSS dashboard for managing AURI luxury jewelry operations.
 
 ## Getting Started
 

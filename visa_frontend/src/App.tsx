@@ -33,7 +33,7 @@ import Products from "./pages/Products";
 import ProductEditor from "./pages/ProductEditor";
 import Inventory from "./pages/Inventory";
 import Coupons from "./pages/Coupons";
-import Customers from "./pages/B2C/Customers";
+import Customers from "./pages/Customers";
 import Orders from "./pages/Orders";
 import Analytics from "./pages/Analytics";
 import Financials from "./pages/Financials";
@@ -67,16 +67,14 @@ export default function App() {
                         {/* Shared Admin & Staff Routes */}
                         <Route index element={<Dashboard/>}/>
                         <Route path="/demo" element={<Demo/>}/>
-                        <Route path="/countries" element={<Collections/>}/>
+                        <Route path="/collections" element={<Collections/>}/>
                         <Route path="/products" element={<Products/>}/>
                         <Route path="/products/new" element={<ProductEditor/>}/>
                         <Route path="/products/:id" element={<ProductEditor/>}/>
                         <Route path="/products/:id/edit" element={<ProductEditor/>}/>
                         <Route path="/inventory" element={<Inventory/>}/>
                         <Route path="/coupons" element={<Coupons/>}/>
-                        <Route path="b2c/customers" element={<Customers/>}/>
-                        <Route path="b2b/customers" element={<Customers/>}/>
-                        <Route path="b2e/customers" element={<Customers/>}/>
+                        <Route path="/customers" element={<Customers/>}/>
                         <Route path="/orders" element={<Orders/>}/>
                         <Route path="/analytics" element={<Analytics/>}/>
                         <Route path="/financials" element={<Financials/>}/>

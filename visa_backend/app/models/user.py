@@ -1,168 +1,124 @@
-from typing import Optional, List
-from sqlmodel import SQLModel, Field, Relationship
-from .base import BaseTable, BaseRead
-from typing import TYPE_CHECKING
+# app/models/user.py
+
+from __future__ import annotations
+from typing import List, Optional, TYPE_CHECKING
+
+from sqlalchemy import (
+    Column,
+    String,
+    Boolean,
+    Table,
+    ForeignKey,
+)
+from sqlalchemy.orm import relationship, Mapped
+
+from app.models.base import Base, BaseTableMixin
 
 if TYPE_CHECKING:
-    from .address import Address
-    from .cart import Cart
-    from .wishlist import Wishlist
-    from .order import Order
-    from .case import SupportCase
-    from .inventory import Inventory
+    from app.models.address import Address
+    from app.models.order import Order
+    from app.models.inventory import Inventory
+    from app.models.case import SupportCase
+    from app.models.cart import Cart
+    from app.models.wishlist import Wishlist
+
+# -----------------------------------------------------
+# MANY-TO-MANY: USER ↔ ROLE
+# -----------------------------------------------------
+user_role_link = Table(
+    "user_role_link",
+    Base.metadata,
+    Column("user_id", ForeignKey("users.id"), primary_key=True),
+    Column("role_id", ForeignKey("roles.id"), primary_key=True),
+)
 
 
-# -----------------------------
-# LINK TABLES
-# -----------------------------
-
-class UserRoleLink(SQLModel, table=True):
-    """Link table between users and roles"""
-    __tablename__ = "user_role_link"
-
-    user_id: int = Field(foreign_key="users.id", primary_key=True)
-    role_id: int = Field(foreign_key="roles.id", primary_key=True)
-
-
-class RolePermissionLink(SQLModel, table=True):
-    """Link table between roles and permissions"""
-    __tablename__ = "role_permission_link"
-
-    role_id: int = Field(foreign_key="roles.id", primary_key=True)
-    permission_id: int = Field(foreign_key="permissions.id", primary_key=True)
-
-
-# -----------------------------
+# -----------------------------------------------------
 # ROLE MODEL
-# -----------------------------
-
-class Role(BaseTable, table=True):
-    """User roles (e.g., admin, staff, user)"""
+# -----------------------------------------------------
+class Role(Base, BaseTableMixin):
+    """
+    Represents a user role (admin, staff, user).
+    No permissions system — pure role-based access.
+    """
     __tablename__ = "roles"
 
-    name: str = Field(index=True, unique=True, min_length=1, max_length=50)
-    description: Optional[str] = Field(default=None, max_length=255)
+    name = Column(String(50), unique=True, nullable=False, index=True)
+    description = Column(String(255))
 
-    permissions: List["Permission"] = Relationship(
+    users: Mapped[List["User"]] = relationship(
+        "User",
+        secondary=user_role_link,
         back_populates="roles",
-        link_model=RolePermissionLink,
-        sa_relationship_kwargs={"lazy": "selectin"},
-    )
-
-    users: List["User"] = Relationship(
-        back_populates="roles",
-        link_model=UserRoleLink,
-        sa_relationship_kwargs={"lazy": "selectin"},
+        lazy="selectin",
     )
 
 
-# -----------------------------
-# PERMISSION MODEL
-# -----------------------------
-
-class Permission(BaseTable, table=True):
-    """Granular actions tied to roles"""
-    __tablename__ = "permissions"
-
-    code: str = Field(unique=True, index=True, max_length=100)
-    description: Optional[str] = Field(default=None, max_length=255)
-
-    roles: List["Role"] = Relationship(
-        back_populates="permissions",
-        link_model=RolePermissionLink,
-        sa_relationship_kwargs={"lazy": "selectin"},
-    )
-
-
-# -----------------------------
+# -----------------------------------------------------
 # USER MODEL
-# -----------------------------
-
-class User(BaseTable, table=True):
-    """Represents a user (customer, staff, or admin)"""
+# -----------------------------------------------------
+class User(Base, BaseTableMixin):
+    """Represents a user (customer, staff, or admin)."""
     __tablename__ = "users"
 
-    email: str = Field(unique=True, index=True, max_length=255)
-    hashed_password: str = Field(max_length=255)
-    full_name: Optional[str] = Field(default=None, max_length=100)
-    is_verified: bool = Field(default=False)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(100))
+    is_verified = Column(Boolean, default=False, nullable=False)
 
-    # Many-to-many: User ↔ Roles
-    roles: List["Role"] = Relationship(
+    # MANY-TO-MANY: User ↔ Roles
+    roles: Mapped[List["Role"]] = relationship(
+        "Role",
+        secondary=user_role_link,
         back_populates="users",
-        link_model=UserRoleLink,
-        sa_relationship_kwargs={"lazy": "selectin"},
+        lazy="selectin",
     )
 
-    addresses: List["Address"] = Relationship(
+    # ONE-TO-MANY RELATIONSHIPS
+    addresses: Mapped[List["Address"]] = relationship(
+        "Address",
         back_populates="user",
-        sa_relationship_kwargs={"lazy": "selectin", "cascade": "all, delete-orphan"},
+        lazy="selectin",
+        cascade="all, delete-orphan",
     )
 
-    # Other relationships
-    cart: Optional["Cart"] = Relationship(back_populates="user", sa_relationship_kwargs={"lazy": "selectin"})
-    orders: List["Order"] = Relationship(back_populates="user", sa_relationship_kwargs={"lazy": "selectin"})
-    wishlist: Optional["Wishlist"] = Relationship(back_populates="user", sa_relationship_kwargs={"lazy": "selectin"})
+    orders: Mapped[List["Order"]] = relationship(
+        "Order",
+        back_populates="user",
+        lazy="selectin",
+    )
 
-    inventory_actions: List["Inventory"] = Relationship(
+    inventory_actions: Mapped[List["Inventory"]] = relationship(
+        "Inventory",
         back_populates="performed_by",
-        sa_relationship_kwargs={"lazy": "selectin"}
+        lazy="selectin",
     )
 
-    # Support Cases
-    cases_raised: List["SupportCase"] = Relationship(
+    cases_raised: Mapped[List["SupportCase"]] = relationship(
+        "SupportCase",
         back_populates="user",
-        sa_relationship_kwargs={
-            "lazy": "selectin",
-            "foreign_keys": "[SupportCase.user_id]",
-        },
+        lazy="selectin",
+        foreign_keys="SupportCase.user_id",
     )
-    cases_assigned: List["SupportCase"] = Relationship(
+
+    cases_assigned: Mapped[List["SupportCase"]] = relationship(
+        "SupportCase",
         back_populates="assigned_to",
-        sa_relationship_kwargs={
-            "lazy": "selectin",
-            "foreign_keys": "[SupportCase.assigned_to_id]",
-        },
+        lazy="selectin",
+        foreign_keys="SupportCase.assigned_to_id",
     )
 
-
-# -----------------------------
-# SCHEMAS
-# -----------------------------
-
-class PermissionRead(BaseRead):
-    id: int
-    code: str
-    description: Optional[str]
-
-
-class RoleRead(BaseRead):
-    id: int
-    name: str
-    description: Optional[str]
-    permissions: Optional[List[PermissionRead]] = None
-
-
-class UserBase(SQLModel):
-    email: str
-    full_name: Optional[str] = None
-    is_verified: bool = False
-
-
-class UserCreate(UserBase):
-    password: str
-    role_names: Optional[List[str]] = Field(
-        default_factory=list, description="Roles to assign (admin/staff/user)"
+    # ONE-TO-ONE RELATIONSHIPS
+    cart: Mapped[Optional["Cart"]] = relationship(
+        "Cart",
+        back_populates="user",
+        lazy="selectin",
+        uselist=False,
     )
 
-
-class UserUpdate(UserBase):
-    role_names: Optional[List[str]] = Field(
-        default_factory=list, description="Roles to assign (admin/staff/user)"
+    wishlist: Mapped[Optional["Wishlist"]] = relationship(
+        "Wishlist",
+        back_populates="user",
+        lazy="selectin",
+        uselist=False,
     )
-
-
-class UserRead(UserBase, BaseRead):
-    id: int
-    is_active: bool
-    roles: Optional[List[RoleRead]] = None

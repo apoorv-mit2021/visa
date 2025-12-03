@@ -1,99 +1,112 @@
 #!/usr/bin/env python3
 """
-Seed the database with sample Products, Variants, Prices, Images, and Attributes.
-Safe to run multiple times.
+Seed the database with sample products and initial inventory.
+
+This script is safe to run multiple times.
 """
 
 import os
 import sys
-from decimal import Decimal
 from sqlmodel import Session, select
+from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.db import engine
-from app.models import (
-    Product,
-    ProductVariant,
-    ProductPrice,
-    ProductImage,
-    ProductAttribute,
-    Collection,
-)
+from app.models.catalog import Product, Collection
+from app.models.inventory import Inventory
 
-
-# ----------------------------
-# SAMPLE PRODUCTS
-# ----------------------------
+# ------------------------------------------------
+# SAMPLE PRODUCTS (UPDATED FOR CURRENT MODEL)
+# ------------------------------------------------
 sample_products = [
     {
+        "sku": "SKU-ESD-001",
         "name": "Eternal Solitaire Diamond Ring",
         "slug": "eternal-solitaire-diamond-ring",
-        "description": "A timeless masterpiece featuring a brilliant 1.5-carat round diamond.",
+        "description": "A timeless masterpiece featuring a brilliant 1.5-carat diamond.",
         "category": "Rings",
-        "variant": {
-            "sku": "ESD-001-PLT",
-            "slug": "esd-001-plt",
-            "price": 8999,
-            "images": [
-                "https://cdn.example.com/images/ring1.png",
-                "https://cdn.example.com/images/ring2.png",
-            ],
-            "attributes": {
-                "Material": ["Platinum 950"],
-                "Stone": ["Diamond"],
-                "Color": ["White"],
-                "Size": ["6"],
-                "Carat": ["1.5ct"],
-                "Clarity": ["VVS1"],
-                "Cut": ["Excellent"],
-            },
+        "price": 8999,
+        "currency": "CAD",
+
+        "sizes": {"6": 5, "7": 2, "8": 1},
+        "product_details": {
+            "Material": "Platinum 950",
+            "Stone": "Diamond",
+            "Color": "White",
+            "Carat": "1.5ct",
+            "Clarity": "VVS1",
+            "Cut": "Excellent",
         },
+        "care_instructions": [
+            "Clean with mild soap",
+            "Avoid direct impact",
+            "Store in a soft pouch"
+        ],
+        "images": [
+            "https://cdn.example.com/images/ring1.png",
+            "https://cdn.example.com/images/ring2.png"
+        ],
+
+        "initial_stock": 20,
     },
     {
+        "sku": "SKU-PEN-002",
         "name": "Pearl Elegance Necklace",
         "slug": "pearl-elegance-necklace",
-        "description": "A sophisticated pearl necklace featuring South Sea pearls.",
+        "description": "A sophisticated necklace made with South Sea pearls.",
         "category": "Necklaces",
-        "variant": {
-            "sku": "PEN-002-GLD",
-            "slug": "pen-002-gld",
-            "price": 4299,
-            "images": [
-                "https://cdn.example.com/images/necklace1.png",
-            ],
-            "attributes": {
-                "Material": ["18K Gold"],
-                "Stone": ["Pearl"],
-                "Color": ["White"],
-                "Size": ["18 inch"],
-                "Pearl Type": ["South Sea"],
-            },
+        "price": 4299,
+        "currency": "CAD",
+
+        "sizes": {"18 inch": 10},
+        "product_details": {
+            "Material": "18K Gold",
+            "Stone": "Pearl",
+            "Pearl Type": "South Sea",
+            "Color": "White",
         },
+        "care_instructions": [
+            "Avoid chemicals",
+            "Wipe with a soft cloth"
+        ],
+        "images": [
+            "https://cdn.example.com/images/necklace1.png"
+        ],
+
+        "initial_stock": 15,
     },
     {
+        "sku": "SKU-RGB-003",
         "name": "Rose Gold Tennis Bracelet",
         "slug": "rose-gold-tennis-bracelet",
-        "description": "Stunning tennis bracelet featuring brilliant diamonds.",
+        "description": "Tennis bracelet crafted with brilliant diamonds.",
         "category": "Bracelets",
-        "variant": {
-            "sku": "RGB-003-RGD",
-            "slug": "rgb-003-rgd",
-            "price": 5799,
-            "images": [
-                "https://cdn.example.com/images/bracelet1.png",
-            ],
-            "attributes": {
-                "Material": ["18K Rose Gold"],
-                "Stone": ["Diamond"],
-                "Color": ["Rose Gold"],
-                "Size": ["7 inch"],
-            },
+        "price": 5799,
+        "currency": "CAD",
+
+        "sizes": {"7 inch": 3},
+        "product_details": {
+            "Material": "18K Rose Gold",
+            "Stone": "Diamond",
+            "Color": "Rose Gold",
         },
+        "care_instructions": [
+            "Clean with soft brush",
+            "Store separately"
+        ],
+        "images": [
+            "https://cdn.example.com/images/bracelet1.png"
+        ],
+
+        "initial_stock": 12,
     },
 ]
 
 
+# ------------------------------------------------
+# SEED FUNCTION
+# ------------------------------------------------
 def seed_products():
     with Session(engine) as session:
 
@@ -101,83 +114,42 @@ def seed_products():
 
         for pdata in sample_products:
 
-            # SKIP EXISTING PRODUCT
             if pdata["slug"] in existing_slugs:
                 print(f"ℹ️ Skipping (already exists): {pdata['name']}")
                 continue
 
-            variant_data = pdata.pop("variant")
+            initial_stock = pdata.pop("initial_stock")
 
+            # ---------------------------
             # 1️⃣ CREATE PRODUCT
+            # ---------------------------
             product = Product(
+                sku=pdata["sku"],
                 name=pdata["name"],
                 slug=pdata["slug"],
                 description=pdata["description"],
                 category=pdata["category"],
+                price=pdata["price"],
+                currency=pdata["currency"],
+
+                sizes=pdata["sizes"],
+                product_details=pdata["product_details"],
+                care_instructions=pdata["care_instructions"],
+                images=pdata["images"],
+
                 is_active=True,
             )
 
             session.add(product)
             session.flush()
-
-            # 2️⃣ CREATE VARIANT
-            variant = ProductVariant(
-                product_id=product.id,
-                sku=variant_data["sku"],
-                slug=variant_data["slug"],
-                name=product.name,
-                stock_quantity=20,
-                is_default=True,
-                is_active=True,
-            )
-
-            session.add(variant)
-            session.flush()
-
-            # 3️⃣ PRICE
-            session.add(
-                ProductPrice(
-                    variant_id=variant.id,
-                    currency="INR",
-                    price=Decimal(variant_data["price"]),
-                )
-            )
-
-            # 4️⃣ IMAGES
-            for idx, url in enumerate(variant_data["images"]):
-                session.add(
-                    ProductImage(
-                        variant_id=variant.id,
-                        image_url=url,
-                        display_order=idx,
-                        is_primary=(idx == 0),
-                    )
-                )
-
-            # 5️⃣ ATTRIBUTES
-            for attr_name, values in variant_data["attributes"].items():
-                for val in values:
-                    session.add(
-                        ProductAttribute(
-                            variant_id=variant.id,
-                            name=attr_name,
-                            value=val,
-                        )
-                    )
-
-            # 6️⃣ ADD COLLECTION LINK (optional)
-            collection = session.exec(
-                select(Collection).where(Collection.name == pdata["category"])
-            ).first()
-
-            if collection:
-                product.collections.append(collection)
-
             session.commit()
             print(f"✅ Created product: {product.name}")
 
         print("🎉 Product seeding complete!")
 
 
+# ------------------------------------------------
+# ENTRYPOINT
+# ------------------------------------------------
 if __name__ == "__main__":
     seed_products()

@@ -1,117 +1,33 @@
 # app/models/coupon.py
 
-from datetime import datetime
-from typing import Optional, Dict
+from __future__ import annotations
 
-from sqlmodel import SQLModel, Field
-from sqlalchemy import JSON, Column
+from sqlalchemy import String, Float, Integer, JSON, DateTime
+from sqlalchemy.orm import mapped_column
 
-from .base import BaseTable, BaseRead
-
-
-class CouponBase(SQLModel):
-    """Base Coupon model with shared fields"""
-
-    code: str = Field(
-        index=True,
-        unique=True,
-        min_length=1,
-        max_length=50,
-        description="Unique coupon code"
-    )
-
-    description: Optional[str] = Field(
-        default=None,
-        max_length=255,
-        description="Short description of the coupon"
-    )
-
-    discount_type: str = Field(
-        default="percentage",
-        description="percentage | fixed"
-    )
-
-    # Only used for percentage-based discounts
-    discount_value: Optional[float] = Field(
-        default=None,
-        gt=0,
-        description="Percentage discount (e.g., 10 means 10%)"
-    )
-
-    fixed_discounts: Dict[str, float] = Field(
-        default_factory=dict,
-        sa_column=Column(JSON),
-        description="Fixed discount per currency, e.g. { 'USD': 10, 'INR': 800 }"
-    )
-
-    min_order_value: Optional[float] = Field(
-        default=None,
-        ge=0,
-        description="Minimum order amount to apply coupon"
-    )
-
-    max_discount_amount: Optional[float] = Field(
-        default=None,
-        ge=0,
-        description="Max discount allowed (percentage type only)"
-    )
-
-    usage_limit: Optional[int] = Field(
-        default=None,
-        ge=1,
-        description="Max total uses of the coupon"
-    )
-
-    # used_count is server-managed; not exposed for create/update
-
-    start_date: Optional[datetime] = Field(
-        default=None,
-        description="Coupon validity start date"
-    )
-
-    end_date: Optional[datetime] = Field(
-        default=None,
-        description="Coupon validity end date"
-    )
+from app.models.base import Base, BaseTableMixin
 
 
-class Coupon(CouponBase, BaseTable, table=True):
-    """Coupon table model"""
+class Coupon(Base, BaseTableMixin):
     __tablename__ = "coupons"
-    # Keep usage counter only on the DB model so clients can't set it
-    used_count: int = Field(
-        default=0,
-        ge=0,
-        description="Total times coupon was used"
-    )
 
+    code = mapped_column(String(50), unique=True, nullable=False, index=True)
+    description = mapped_column(String(255), nullable=True)
 
-class CouponCreate(CouponBase):
-    """Schema for creating a coupon"""
-    pass
+    # percentage | fixed
+    discount_type = mapped_column(String(20), default="percentage", nullable=False)
 
+    # Only for percentage-based discount
+    discount_value = mapped_column(Float, nullable=True)
 
-class CouponUpdate(SQLModel):
-    """Schema for updating a coupon (all fields optional)"""
+    # JSON: { 'USD': 10, 'INR': 800 }
+    fixed_discounts = mapped_column(JSON, default=dict, nullable=False)
 
-    code: Optional[str] = None
-    description: Optional[str] = None
-    discount_type: Optional[str] = None
-    discount_value: Optional[float] = None
-    fixed_discounts: Optional[Dict[str, float]] = None
+    min_order_value = mapped_column(Float, nullable=True)
+    max_discount_amount = mapped_column(Float, nullable=True)
 
-    min_order_value: Optional[float] = None
-    max_discount_amount: Optional[float] = None
+    usage_limit = mapped_column(Integer, nullable=True)
+    used_count = mapped_column(Integer, default=0, nullable=False)
 
-    usage_limit: Optional[int] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-
-    is_active: Optional[bool] = None
-
-
-class CouponRead(CouponBase, BaseRead):
-    """Schema returned when reading coupon data."""
-    id: int
-    is_active: bool
-    used_count: int
+    start_date = mapped_column(DateTime, nullable=True)
+    end_date = mapped_column(DateTime, nullable=True)

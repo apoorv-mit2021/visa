@@ -14,10 +14,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlmodel import SQLModel
 from app.db import engine
-from app import models  # optional, to ensure all models are registered
+from app import models
+
 from scripts.seed_roles_and_users import seed_roles_and_users
 from scripts.seed_collections import seed_collections
 from scripts.seed_products import seed_products
+from scripts.seed_orders import seed_orders
+from scripts.seed_coupons import seed_coupons
 
 
 def reset_database():
@@ -36,7 +39,9 @@ def reset_database():
     print("✅ Database reset complete.")
     seed_roles_and_users()
     seed_collections()
-    # seed_products()
+    seed_products()
+    seed_orders()
+    seed_coupons()
 
 
 if __name__ == "__main__":

@@ -1,60 +1,48 @@
-from typing import Optional, List
-from sqlmodel import SQLModel, Field, Relationship
-from .base import BaseTable, BaseRead
-from .user import User
-from .product_variant import ProductVariant
+# app/models/cart.py
 
+from __future__ import annotations
 
-# -----------------------------------------------------
-# BASE ITEM MODEL
-# -----------------------------------------------------
-class CartItemBase(SQLModel):
-    quantity: int = Field(gt=0, description="Number of items in the cart")
+from typing import List, TYPE_CHECKING
+
+from sqlalchemy import Integer, ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, BaseTableMixin
+
+if TYPE_CHECKING:
+    from app.models.user import User
+    from app.models.catalog import Product
 
 
 # -----------------------------------------------------
 # CART MODEL
 # -----------------------------------------------------
-class Cart(BaseTable, table=True):
-    """User shopping cart"""
+class Cart(Base, BaseTableMixin):
     __tablename__ = "carts"
 
-    user_id: int = Field(foreign_key="users.id", index=True, unique=True)
-    user: User = Relationship(back_populates="cart")
+    user_id = mapped_column(ForeignKey("users.id"), unique=True, nullable=False, index=True)
 
-    items: List["CartItem"] = Relationship(
+    user: Mapped["User"] = relationship("User", back_populates="cart", lazy="selectin")
+
+    items: Mapped[List["CartItem"]] = relationship(
+        "CartItem",
         back_populates="cart",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan", "lazy": "selectin"},
+        lazy="selectin",
+        cascade="all, delete-orphan",
     )
 
 
-class CartItem(CartItemBase, BaseTable, table=True):
-    """Items in a user cart (variant-level)"""
+# -----------------------------------------------------
+# CART ITEM MODEL
+# -----------------------------------------------------
+class CartItem(Base, BaseTableMixin):
     __tablename__ = "cart_items"
 
-    cart_id: int = Field(foreign_key="carts.id", index=True)
-    variant_id: int = Field(foreign_key="product_variants.id", index=True)
+    cart_id = mapped_column(ForeignKey("carts.id"), index=True, nullable=False)
+    product_id = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
 
-    cart: Cart = Relationship(back_populates="items")
-    variant: ProductVariant = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
+    size = mapped_column(String(20), nullable=False)
+    quantity = mapped_column(Integer, nullable=False)
 
-
-# -----------------------------------------------------
-# SCHEMAS
-# -----------------------------------------------------
-class CartItemCreate(SQLModel):
-    variant_id: int
-    quantity: int
-
-
-class CartItemRead(BaseRead):
-    id: int
-    variant_id: int
-    quantity: int
-    variant: Optional[ProductVariant] = None
-
-
-class CartRead(BaseRead):
-    id: int
-    user_id: int
-    items: Optional[List[CartItemRead]] = None
+    cart: Mapped["Cart"] = relationship("Cart", back_populates="items", lazy="selectin")
+    product: Mapped["Product"] = relationship("Product", lazy="selectin")

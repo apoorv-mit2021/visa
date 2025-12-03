@@ -4,11 +4,13 @@ import Badge from "../../ui/badge/Badge";
 import {getOrderMetrics} from "../../../services/orderService";
 import type { OrderMetrics as OrderMetricsType } from "../../../services/orderService";
 import {ShoppingBag, Clock, CheckCircle, XCircle, DollarSign, TrendingUp, CalendarDays} from "lucide-react";
+import { useAuth } from "../../../context/AuthContext";
 
 export default function OrderMetrics({refreshKey = 0}: { refreshKey?: number }) {
     const [metrics, setMetrics] = useState<OrderMetricsType | null>(null);
     const [loading, setLoading] = useState(true);
-    const token = localStorage.getItem("token") || "";
+    const { token } = useAuth();
+    const authToken = token || "";
 
     const formatAmount = (value: number) =>
         value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -17,7 +19,11 @@ export default function OrderMetrics({refreshKey = 0}: { refreshKey?: number }) 
         const fetchMetrics = async () => {
             try {
                 setLoading(true);
-                const data = await getOrderMetrics(token);
+                if (!authToken) {
+                    setMetrics(null);
+                    return;
+                }
+                const data = await getOrderMetrics(authToken);
                 setMetrics(data);
             } catch (error: unknown) {
                 console.error("Failed to fetch order metrics:", error);
@@ -32,7 +38,7 @@ export default function OrderMetrics({refreshKey = 0}: { refreshKey?: number }) 
             }
         };
         fetchMetrics();
-    }, [token, refreshKey]);
+    }, [authToken, refreshKey]);
 
     if (loading || !metrics) {
         return (
@@ -96,7 +102,7 @@ export default function OrderMetrics({refreshKey = 0}: { refreshKey?: number }) 
                 </div>
             </div>
 
-            {/* Completed Orders */}
+            {/* Delivered Orders */}
             <div
                 className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
                 <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-xl dark:bg-gray-800">
@@ -104,10 +110,10 @@ export default function OrderMetrics({refreshKey = 0}: { refreshKey?: number }) 
                 </div>
                 <div className="flex items-end justify-between mt-5">
                     <div>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Completed Orders</span>
-                        <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{metrics.completed_orders}</h4>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Delivered Orders</span>
+                        <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{metrics.delivered_orders}</h4>
                     </div>
-                    <Badge color="success">Completed</Badge>
+                    <Badge color="success">Delivered</Badge>
                 </div>
             </div>
 

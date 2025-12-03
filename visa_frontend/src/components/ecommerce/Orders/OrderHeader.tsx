@@ -9,10 +9,10 @@ export default function OrderHeader({onRefresh}: OrderHeaderProps) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
                 <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
-                    Visa Application Management
+                    Order Management
                 </h1>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                    Manage visa applications
+                    Manage your orders and their performance
                 </p>
             </div>
             <button

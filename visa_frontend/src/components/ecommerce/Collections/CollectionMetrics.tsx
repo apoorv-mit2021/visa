@@ -60,7 +60,7 @@ export default function CollectionMetrics({refreshKey = 0}: { refreshKey?: numbe
                 </div>
                 <div className="flex items-end justify-between mt-5">
                     <div>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Total Countries</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Total Collections</span>
                         <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{metrics.total_collections}</h4>
                     </div>
                     <Badge color="info">Total</Badge>
@@ -74,7 +74,7 @@ export default function CollectionMetrics({refreshKey = 0}: { refreshKey?: numbe
                 </div>
                 <div className="flex items-end justify-between mt-5">
                     <div>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Active Countries</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Active Collections</span>
                         <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{metrics.active_collections}</h4>
                     </div>
                     <Badge color="success">Active</Badge>
@@ -88,7 +88,7 @@ export default function CollectionMetrics({refreshKey = 0}: { refreshKey?: numbe
                 </div>
                 <div className="flex items-end justify-between mt-5">
                     <div>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Linked Visa Products</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Linked Products</span>
                         <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{metrics.total_linked_products}</h4>
                     </div>
                     <Badge color="info">Linked</Badge>
@@ -102,7 +102,7 @@ export default function CollectionMetrics({refreshKey = 0}: { refreshKey?: numbe
                 </div>
                 <div className="flex items-end justify-between mt-5">
                     <div>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Avg. Products / Country</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Avg. Products / Collection</span>
                         <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{metrics.avg_products_per_collection}</h4>
                     </div>
                     <Badge color="warning">Average</Badge>

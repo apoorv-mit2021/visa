@@ -11,10 +11,10 @@ export default function ProductHeader({onAddProduct, onRefresh}: ProductHeaderPr
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
                 <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
-                    Visa Product Management
+                    Product Management
                 </h1>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                    Create and manage your visa products
+                    Manage your team members and their performance
                 </p>
             </div>
 

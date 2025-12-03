@@ -2,10 +2,13 @@ import {useEffect, useMemo, useRef, useState} from "react";
 import {Table, TableBody, TableCell, TableHeader, TableRow} from "../../ui/table";
 import Badge from "../../ui/badge/Badge.tsx";
 import {listSupportCases, type SupportCase} from "../../../services/caseService";
+import {getStaff} from "../../../services/employeeService";
+import {getCustomer} from "../../../services/customerService";
 import {toast} from "sonner";
 import {Dropdown} from "../../ui/dropdown/Dropdown.tsx";
 import {DropdownItem} from "../../ui/dropdown/DropdownItem.tsx";
 import {useDropdownPosition} from "../../../hooks/useDropdownPosition";
+import { MoreVertical } from "lucide-react";
 
 // Status order for sorting for support cases
 const STATUS_ORDER: Record<SupportCase["status"], number> = {
@@ -14,14 +17,20 @@ const STATUS_ORDER: Record<SupportCase["status"], number> = {
     closed: 3,
 };
 
-type SortKey = "title" | "status" | "created_at";
+type SortKey = "subject" | "status" | "created_at";
 
 type SortState = {
     key: SortKey | null;
     order: "asc" | "desc";
 };
 
-export default function CaseTable({refreshKey = 0}: { refreshKey?: number }) {
+type CaseTableProps = {
+    refreshKey?: number;
+    onView?: (c: SupportCase) => void;
+    onEdit?: (c: SupportCase) => void;
+};
+
+export default function CaseTable({refreshKey = 0, onView, onEdit}: CaseTableProps) {
     const [cases, setCases] = useState<SupportCase[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
@@ -30,6 +39,15 @@ export default function CaseTable({refreshKey = 0}: { refreshKey?: number }) {
     const [currentPage, setCurrentPage] = useState(1);
     const rowsPerPage = 5;
     const token = localStorage.getItem("token") || "";
+    // Caches for resolving IDs to names
+    const [staffNameMap, setStaffNameMap] = useState<Record<number, string>>({});
+    const [customerNameMap, setCustomerNameMap] = useState<Record<number, string>>({});
+
+    // Row action dropdown state (pattern same as CollectionTable)
+    const [openActionId, setOpenActionId] = useState<number | null>(null);
+    const closeAction = () => setOpenActionId(null);
+    const { position, calculatePosition, isVisible, hideDropdown } = useDropdownPosition();
+    const buttonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
     // Status filter dropdown positioning (same pattern as OrderTable)
     const {
@@ -59,12 +77,88 @@ export default function CaseTable({refreshKey = 0}: { refreshKey?: number }) {
         fetchCases();
     }, [token, refreshKey]);
 
+    // Resolve staff and customer names for displayed cases
+    useEffect(() => {
+        const resolveNames = async () => {
+            try {
+                // Unique staff IDs (exclude null/undefined)
+                const staffIds = Array.from(
+                    new Set(
+                        cases
+                            .map((c) => c.assigned_to_id)
+                            .filter((id): id is number => id !== null && id !== undefined)
+                    )
+                );
+                const missingStaffIds = staffIds.filter((id) => staffNameMap[id] === undefined);
+
+                // Unique customer IDs
+                const customerIds = Array.from(new Set(cases.map((c) => c.user_id)));
+                const missingCustomerIds = customerIds.filter((id) => customerNameMap[id] === undefined);
+
+                const staffPromises = missingStaffIds.map(async (id) => {
+                    try {
+                        const staff = await getStaff(token, id);
+                        return [id, staff.full_name] as const;
+                    } catch {
+                        return [id, `Staff #${id}`] as const;
+                    }
+                });
+
+                const customerPromises = missingCustomerIds.map(async (id) => {
+                    try {
+                        const customer = await getCustomer(token, id);
+                        return [id, customer.full_name] as const;
+                    } catch {
+                        return [id, `Customer #${id}`] as const;
+                    }
+                });
+
+                const [staffResults, customerResults] = await Promise.all([
+                    Promise.all(staffPromises),
+                    Promise.all(customerPromises),
+                ]);
+
+                if (staffResults.length > 0) {
+                    setStaffNameMap((prev) => {
+                        const next = {...prev};
+                        for (const [id, name] of staffResults) next[id] = name;
+                        return next;
+                    });
+                }
+
+                if (customerResults.length > 0) {
+                    setCustomerNameMap((prev) => {
+                        const next = {...prev};
+                        for (const [id, name] of customerResults) next[id] = name;
+                        return next;
+                    });
+                }
+            } catch (error) {
+                // Non-blocking: errors already handled per-item, but keep a console for debugging
+                console.error("Failed to resolve some names", error);
+            }
+        };
+
+        if (cases.length > 0 && token) {
+            // Only run if there are any missing IDs to resolve
+            const hasMissingStaff = cases.some(
+                (c) => c.assigned_to_id != null && staffNameMap[c.assigned_to_id] === undefined
+            );
+            const hasMissingCustomers = cases.some(
+                (c) => customerNameMap[c.user_id] === undefined
+            );
+            if (hasMissingStaff || hasMissingCustomers) {
+                resolveNames();
+            }
+        }
+    }, [cases, token, staffNameMap, customerNameMap]);
+
     // Filter + search + sort
     const filteredData = useMemo(() => {
         let data = cases.filter((c) => {
             const q = searchQuery.toLowerCase();
             const matchesSearch =
-                c.title.toLowerCase().includes(q) ||
+                c.subject.toLowerCase().includes(q) ||
                 (c.description || "").toLowerCase().includes(q) ||
                 c.status.toLowerCase().includes(q);
             const matchesStatus = statusFilter === "All" || c.status === (statusFilter as SupportCase["status"]);
@@ -75,8 +169,8 @@ export default function CaseTable({refreshKey = 0}: { refreshKey?: number }) {
             const dir = sort.order === "asc" ? 1 : -1;
             data = [...data].sort((a, b) => {
                 switch (sort.key) {
-                    case "title":
-                        return a.title.localeCompare(b.title) * dir;
+                    case "subject":
+                        return a.subject.localeCompare(b.subject) * dir;
                     case "status":
                         return (STATUS_ORDER[a.status] - STATUS_ORDER[b.status]) * dir;
                     case "created_at":
@@ -234,8 +328,8 @@ export default function CaseTable({refreshKey = 0}: { refreshKey?: number }) {
                     <TableHeader className="border-gray-100 dark:border-gray-800 border-y">
                         <TableRow>
                             <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 select-none">
-                                <button type="button" onClick={() => toggleSort("title")} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300">
-                                    Title {sortIndicator("title")}
+                                <button type="button" onClick={() => toggleSort("subject")} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300">
+                                    Subject {sortIndicator("subject")}
                                 </button>
                             </TableCell>
                             <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 select-none">
@@ -254,13 +348,16 @@ export default function CaseTable({refreshKey = 0}: { refreshKey?: number }) {
                                     Created {sortIndicator("created_at")}
                                 </button>
                             </TableCell>
+                            <TableCell isHeader className="py-3 font-medium text-gray-500 text-end text-theme-xs dark:text-gray-400 select-none">
+                                Action
+                            </TableCell>
                         </TableRow>
                     </TableHeader>
 
                     <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
                         {loading ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="py-6 text-center text-gray-500 dark:text-gray-400">
+                                <TableCell colSpan={6} className="py-6 text-center text-gray-500 dark:text-gray-400">
                                     Loading cases...
                                 </TableCell>
                             </TableRow>
@@ -269,7 +366,13 @@ export default function CaseTable({refreshKey = 0}: { refreshKey?: number }) {
                                 <TableRow key={c.id}>
                                     <TableCell className="py-3">
                                         <div>
-                                            <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{c.title}</p>
+                                            <button
+                                                type="button"
+                                                className="font-medium text-gray-800 text-theme-sm dark:text-white/90 hover:underline"
+                                                onClick={() => onView?.(c)}
+                                            >
+                                                {c.subject}
+                                            </button>
                                             <span className="text-gray-500 text-theme-xs dark:text-gray-400 line-clamp-1">{c.description}</span>
                                         </div>
                                     </TableCell>
@@ -281,14 +384,72 @@ export default function CaseTable({refreshKey = 0}: { refreshKey?: number }) {
                                             {c.status.replace("_", " ")}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">{c.assigned_to ?? "Unassigned"}</TableCell>
-                                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">{c.user_id}</TableCell>
+                                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                                        {c.assigned_to_id == null
+                                            ? "Unassigned"
+                                            : (staffNameMap[c.assigned_to_id] ?? `Staff #${c.assigned_to_id}`)}
+                                    </TableCell>
+                                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                                        {customerNameMap[c.user_id] ?? `Customer #${c.user_id}`}
+                                    </TableCell>
                                     <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">{formatDateTime(c.created_at)}</TableCell>
+                                    <TableCell className="py-3 text-right">
+                                        <div className="relative inline-block">
+                                            <button
+                                                ref={(el) => {
+                                                    buttonRefs.current[c.id] = el;
+                                                }}
+                                                type="button"
+                                                className="dropdown-toggle"
+                                                onClick={() => {
+                                                    const button = buttonRefs.current[c.id];
+                                                    if (button) calculatePosition(button, 150, 100);
+                                                    setOpenActionId(openActionId === c.id ? null : c.id);
+                                                }}
+                                                aria-label="Actions"
+                                            >
+                                                <MoreVertical className="size-5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" />
+                                            </button>
+
+                                            {openActionId === c.id && isVisible && (
+                                                <Dropdown
+                                                    isOpen={true}
+                                                    onClose={() => {
+                                                        closeAction();
+                                                        hideDropdown();
+                                                    }}
+                                                    className="fixed z-50 w-36 p-2 bg-white shadow-lg dark:bg-gray-900 rounded-2xl"
+                                                    style={{ top: position.top, left: position.left }}
+                                                >
+                                                    <DropdownItem
+                                                        onItemClick={() => {
+                                                            onView?.(c);
+                                                            closeAction();
+                                                            hideDropdown();
+                                                        }}
+                                                        className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                                                    >
+                                                        View
+                                                    </DropdownItem>
+                                                    <DropdownItem
+                                                        onItemClick={() => {
+                                                            onEdit?.(c);
+                                                            closeAction();
+                                                            hideDropdown();
+                                                        }}
+                                                        className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                                                    >
+                                                        Edit
+                                                    </DropdownItem>
+                                                </Dropdown>
+                                            )}
+                                        </div>
+                                    </TableCell>
                                 </TableRow>
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={5} className="py-6 text-center text-gray-500 dark:text-gray-400">
+                                <TableCell colSpan={6} className="py-6 text-center text-gray-500 dark:text-gray-400">
                                     No cases found
                                 </TableCell>
                             </TableRow>

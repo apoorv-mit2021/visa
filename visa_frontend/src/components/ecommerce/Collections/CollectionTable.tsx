@@ -3,7 +3,7 @@ import {Table, TableBody, TableCell, TableHeader, TableRow} from "../../ui/table
 import Badge from "../../ui/badge/Badge.tsx";
 import {listCollections, type Collection} from "../../../services/collectionService";
 import {toast} from "sonner";
-import {CheckCircle, MoreVertical, XCircle, Globe} from "lucide-react";
+import {CheckCircle, MoreVertical, XCircle, Layers} from "lucide-react";
 import {Dropdown} from "../../ui/dropdown/Dropdown.tsx";
 import {DropdownItem} from "../../ui/dropdown/DropdownItem.tsx";
 import {useDropdownPosition} from "../../../hooks/useDropdownPosition";
@@ -49,7 +49,7 @@ export default function CollectionTable({refreshKey = 0, onView, onEdit}: {
                 setLoading(true);
                 const data = await listCollections(token, {limit: 100});
                 setCollections(data);
-            } catch (error: unknown) {
+            } catch (error: any) {
                 console.error(error);
                 toast.error("Failed to fetch collections list.");
             } finally {
@@ -114,7 +114,7 @@ export default function CollectionTable({refreshKey = 0, onView, onEdit}: {
     if (loading) {
         return (
             <div className="p-6 text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                Loading Countries...
+                Loading collections...
             </div>
         );
     }
@@ -124,13 +124,13 @@ export default function CollectionTable({refreshKey = 0, onView, onEdit}: {
             className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6">
             {/* Header */}
             <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Countries</h3>
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Collections</h3>
 
                 <div className="flex flex-wrap items-center gap-3">
                     {/* Search */}
                     <input
                         type="text"
-                        placeholder="Search countries..."
+                        placeholder="Search collections..."
                         className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
                         value={searchQuery}
                         onChange={(e) => {
@@ -236,19 +236,19 @@ export default function CollectionTable({refreshKey = 0, onView, onEdit}: {
                                        className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 select-none">
                                 <button type="button" onClick={() => toggleSort("name")}
                                         className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300">
-                                    Country {sortIndicator("name")}
+                                    Collection {sortIndicator("name")}
                                 </button>
                             </TableCell>
                             <TableCell isHeader
                                        className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 select-none">
                                 <button type="button" onClick={() => toggleSort("slug")}
                                         className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300">
-                                    Code {sortIndicator("slug")}
+                                    Slug {sortIndicator("slug")}
                                 </button>
                             </TableCell>
                             <TableCell isHeader
                                        className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 select-none">
-                                # Visa Products
+                                Products
                             </TableCell>
                             <TableCell isHeader
                                        className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 select-none">
@@ -270,9 +270,7 @@ export default function CollectionTable({refreshKey = 0, onView, onEdit}: {
                                 <TableRow key={col.id}>
                                     <TableCell className="py-3 text-gray-700 dark:text-gray-300">
                                         <div className="flex items-center gap-3">
-                                            {/*Icon*/}
-                                            {/*TODO: Add icon, rounded country flag could be added*/}
-                                            <Globe className="size-6 text-gray-400 dark:text-gray-500"/>
+                                            <Layers className="size-6 text-gray-400 dark:text-gray-500"/>
                                             <div>
                                                 <p className="font-medium text-gray-800 dark:text-white/90">{col.name}</p>
                                                 <span
@@ -282,7 +280,7 @@ export default function CollectionTable({refreshKey = 0, onView, onEdit}: {
                                     </TableCell>
                                     <TableCell className="py-3 text-gray-500 dark:text-gray-400">{col.slug}</TableCell>
                                     <TableCell
-                                        className="py-3 text-gray-500 dark:text-gray-400">{col.product_count ?? 0}</TableCell>
+                                        className="py-3 text-gray-500 dark:text-gray-400">{col.product_ids?.length ?? 0}</TableCell>
                                     <TableCell className="py-3">
                                         <Badge size="sm" color={col.is_active ? "success" : "error"}>
                                             {col.is_active ? (

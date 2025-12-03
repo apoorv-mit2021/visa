@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Seed base roles, permissions, and default users (admin, staff, client).
+Seed base roles and default users (admin, staff, client).
 ⚠️ Safe to run multiple times — won't create duplicates.
 """
 
@@ -9,50 +9,24 @@ import sys
 from sqlmodel import Session, select
 from passlib.context import CryptContext
 
-# Ensure project root is in sys.path
+# Ensure the project root is in sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.db import engine
-from app.models.user import Role, Permission, User
+from app.models.user import Role, User
 
-# Set up bcrypt for password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def get_password_hash(password: str) -> str:
-    """Hash plaintext password securely."""
+def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
 
 def seed_roles_and_users():
-    """Seed base roles, permissions, and default users."""
-    # ----------------------------
-    # 🧩 Role → Permission mapping
-    # ----------------------------
-    role_data = {
-        "admin": [
-            "manage_users",
-            "manage_products",
-            "manage_orders",
-            "manage_roles",
-            "view_reports",
-        ],
-        "staff": [
-            "manage_products",
-            "manage_orders",
-            "view_reports",
-        ],
-        "client": [
-            "view_products",
-            "place_orders",
-            "manage_account",
-        ],
-    }
+    """Seed base roles and default users."""
+    roles_to_create = ["admin", "staff", "client"]
 
-    # ----------------------------
-    # 👤 Default user accounts
-    # ----------------------------
-    user_data = [
+    default_users = [
         {
             "email": "admin@demo.com",
             "full_name": "Admin User",
@@ -75,78 +49,61 @@ def seed_roles_and_users():
 
     with Session(engine) as session:
         # ---------------------------------
-        # 🧱 Seed Roles & Permissions
+        # 🧱 Seed Roles
         # ---------------------------------
         existing_roles = {r.name for r in session.exec(select(Role)).all()}
 
-        for role_name, perms in role_data.items():
-            role = session.exec(select(Role).where(Role.name == role_name)).first()
-
-            if not role:
+        for role_name in roles_to_create:
+            if role_name not in existing_roles:
                 role = Role(
                     name=role_name,
-                    description=f"{role_name.capitalize()} role with appropriate privileges",
+                    description=f"{role_name.capitalize()} role",
                 )
                 session.add(role)
                 session.commit()
-                session.refresh(role)
                 print(f"✅ Created role: {role_name}")
             else:
                 print(f"ℹ️ Role already exists: {role_name}")
 
-            # Attach permissions to role
-            for perm_code in perms:
-                perm = session.exec(select(Permission).where(Permission.code == perm_code)).first()
-                if not perm:
-                    perm = Permission(
-                        code=perm_code,
-                        description=f"Permission to {perm_code.replace('_', ' ')}",
-                    )
-                    session.add(perm)
-                    session.commit()
-                    session.refresh(perm)
-                    print(f"✅ Created permission: {perm_code}")
-
-                if perm not in role.permissions:
-                    role.permissions.append(perm)
-
-            session.add(role)
-            session.commit()
-
-        print("🎯 Roles and permissions seeded successfully.\n")
+        print("\n🎯 Roles seeded successfully.\n")
 
         # ---------------------------------
-        # 👤 Seed Users & Assign Roles
+        # 👤 Seed Users
         # ---------------------------------
         existing_users = {u.email for u in session.exec(select(User)).all()}
 
-        for user_info in user_data:
+        for user_info in default_users:
             if user_info["email"] in existing_users:
                 print(f"ℹ️ User already exists: {user_info['email']}")
                 continue
 
-            # Get role
-            role = session.exec(select(Role).where(Role.name == user_info["role"])).first()
+            # Fetch role
+            role = session.exec(
+                select(Role).where(Role.name == user_info["role"])
+            ).first()
+
             if not role:
-                print(f"⚠️ Role not found for {user_info['email']} — skipping.")
+                print(f"⚠️ Role {user_info['role']} missing — skipped")
                 continue
 
             # Create user
             user = User(
                 email=user_info["email"],
                 full_name=user_info["full_name"],
-                hashed_password=get_password_hash(user_info["password"]),
+                hashed_password=hash_password(user_info["password"]),
                 is_verified=True,
                 is_active=True,
             )
+
             user.roles.append(role)
 
             session.add(user)
             session.commit()
             session.refresh(user)
+
             print(f"✅ Created user: {user.email} (role: {role.name})")
 
-        print("\n🎉 Seeding complete — roles, permissions, and users initialized.")
+        print("\n🎉 Seeding complete — roles and users initialized.")
 
 
 if __name__ == "__main__":

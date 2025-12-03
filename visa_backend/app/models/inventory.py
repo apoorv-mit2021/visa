@@ -1,30 +1,41 @@
 # app/models/inventory.py
 
-from typing import Optional
-from sqlmodel import Field, Relationship
-from app.models.base import BaseTable
-from typing import TYPE_CHECKING
+from __future__ import annotations
+from typing import Optional, TYPE_CHECKING
+
+from sqlalchemy import String, ForeignKey, Integer
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, BaseTableMixin
 
 if TYPE_CHECKING:
-    from app.models.product_variant import ProductVariant
+    from app.models.catalog import Product
     from app.models.user import User
 
 
-class Inventory(BaseTable, table=True):
+class Inventory(Base, BaseTableMixin):
     __tablename__ = "inventory"
 
-    variant_id: int = Field(foreign_key="product_variants.id", index=True)
-    product_variant: "ProductVariant" = Relationship(back_populates="inventory")
-
-    previous_quantity: int = Field(default=0)
-    change: int = Field(default=0)
-    new_quantity: int = Field(default=0)
-
-    reason: str = Field(
-        max_length=100,
-        description="admin_update / order_purchase / order_cancel / system_adjust / restock / transfer / damage / audit",
+    product_id = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
+    product: Mapped["Product"] = relationship(
+        "Product",
+        lazy="selectin",
     )
-    note: Optional[str] = Field(default=None)
 
-    performed_by_id: Optional[int] = Field(default=None, foreign_key="users.id")
-    performed_by: Optional["User"] = Relationship()
+    previous_quantity = mapped_column(Integer, nullable=False, default=0)
+    change = mapped_column(Integer, nullable=False, default=0)
+    new_quantity = mapped_column(Integer, nullable=False, default=0)
+
+    reason = mapped_column(
+        String(100),
+        nullable=False,
+        doc="admin_update / order_purchase / order_cancel / system_adjust / restock / transfer / damage / audit",
+    )
+
+    note = mapped_column(String, nullable=True)
+
+    performed_by_id = mapped_column(ForeignKey("users.id"), nullable=True)
+    performed_by: Mapped[Optional["User"]] = relationship(
+        "User",
+        lazy="selectin",
+    )

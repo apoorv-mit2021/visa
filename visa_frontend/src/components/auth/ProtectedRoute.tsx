@@ -1,32 +1,3 @@
-// // src/components/auth/ProtectedRoute.tsx
-//
-// import {ReactElement} from "react";
-// import {Navigate} from "react-router-dom";
-// import {useAuth} from "../../context/AuthContext";
-// import Loader from "../../components/common/Loader";
-//
-// interface ProtectedRouteProps {
-//     children: ReactElement;
-//     allowedRoles?: string[];
-// }
-//
-// export default function ProtectedRoute({
-//                                            children,
-//                                            allowedRoles,
-//                                        }: ProtectedRouteProps) {
-//     const {user, isAuthenticated, isLoading} = useAuth();
-//
-//     if (isLoading) return <Loader/>;
-//
-//     if (!isAuthenticated) return <Navigate to="/signin" replace/>;
-//
-//     if (allowedRoles && !allowedRoles.some((role) => user?.roles.includes(role))) {
-//         return <Navigate to="/unauthorized" replace/>;
-//     }
-//
-//     return children;
-// }
-
 // src/components/auth/ProtectedRoute.tsx
 
 import {ReactElement} from "react";

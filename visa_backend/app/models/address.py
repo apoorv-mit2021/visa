@@ -1,11 +1,16 @@
-from typing import Optional, List
-from sqlmodel import SQLModel, Field, Relationship
-from .base import BaseTable, BaseRead
+# app/models/address.py
+
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
+from sqlalchemy import String, Boolean, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, BaseTableMixin
+
 if TYPE_CHECKING:
-    from .user import User
-    from .order import Order
+    from app.models.user import User
 
 
 class AddressType:
@@ -13,64 +18,24 @@ class AddressType:
     BILLING = "billing"
 
 
-class Address(BaseTable, table=True):
-    """Stores user addresses for shipping and billing"""
+class Address(Base, BaseTableMixin):
     __tablename__ = "addresses"
 
-    user_id: int = Field(foreign_key="users.id", index=True)
-    type: str = Field(default=AddressType.SHIPPING, description="shipping or billing")
-    full_name: str = Field(max_length=255)
-    street_address: str = Field(max_length=255)
-    apartment: Optional[str] = Field(default=None, max_length=100)
-    city: str = Field(max_length=100)
-    state: str = Field(max_length=100)
-    zip_code: str = Field(max_length=20)
-    country: str = Field(max_length=100)
-    is_default: bool = Field(default=False, description="Is this the default address for its type")
+    user_id = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
 
-    user: "User" = Relationship(back_populates="addresses", sa_relationship_kwargs={"lazy": "selectin"})
+    type = mapped_column(String(20), default=AddressType.SHIPPING, nullable=False)
+    full_name = mapped_column(String(255), nullable=False)
+    street = mapped_column(String(255), nullable=False)
+    apartment = mapped_column(String(100), nullable=True)
+    city = mapped_column(String(100), nullable=False)
+    state = mapped_column(String(100), nullable=False)
+    zip = mapped_column(String(20), nullable=False)
+    country = mapped_column(String(100), nullable=False)
 
+    is_default = mapped_column(Boolean, default=False, nullable=False)
 
-# -----------------------------
-# SCHEMAS
-# -----------------------------
-
-class AddressBase(SQLModel):
-    type: str = Field(default=AddressType.SHIPPING)
-    full_name: str
-    street_address: str
-    apartment: Optional[str] = None
-    city: str
-    state: str
-    zip_code: str
-    country: str
-    is_default: bool = False
-
-
-class AddressCreate(AddressBase):
-    pass
-
-
-class AddressUpdate(SQLModel):
-    full_name: Optional[str] = None
-    street_address: Optional[str] = None
-    apartment: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    zip_code: Optional[str] = None
-    country: Optional[str] = None
-    is_default: Optional[bool] = None
-
-
-class AddressRead(BaseRead):
-    id: int
-    user_id: int
-    type: str
-    full_name: str
-    street_address: str
-    apartment: Optional[str]
-    city: str
-    state: str
-    zip_code: str
-    country: str
-    is_default: bool
+    user: Mapped["User"] = relationship(
+        "User",
+        back_populates="addresses",
+        lazy="selectin",
+    )

@@ -9,9 +9,9 @@ import {
     createProduct,
     getProduct,
     updateProduct,
-    type AdminProductDetail,
-    type CreateProductPayload,
-    type UpdateProductPayload,
+    type Product,
+    type ProductCreatePayload,
+    type ProductUpdatePayload,
 } from "../services/productService";
 
 export default function ProductEditor() {
@@ -27,7 +27,7 @@ export default function ProductEditor() {
         return location.pathname.endsWith("/edit") ? "edit" : "view";
     }, [location.pathname, productId]);
 
-    const [product, setProduct] = useState<AdminProductDetail | undefined>(undefined);
+    const [product, setProduct] = useState<Product | undefined>(undefined);
     const [loading, setLoading] = useState<boolean>(!!productId);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -46,7 +46,8 @@ export default function ProductEditor() {
                 if (!ignore) setProduct(data);
             } catch (error) {
                 if (axios.isAxiosError(error)) {
-                    toast.error((error.response?.data as any)?.detail || "Failed to load product.");
+                    const detail = (error.response?.data as { detail?: string } | undefined)?.detail;
+                    toast.error(detail || "Failed to load product.");
                 } else {
                     toast.error("Unexpected error while loading product.");
                 }
@@ -61,7 +62,7 @@ export default function ProductEditor() {
     }, [productId, token]);
 
     const handleSubmit = async (
-        data: CreateProductPayload | { id: number; data: UpdateProductPayload }
+        data: ProductCreatePayload | { id: number; data: ProductUpdatePayload }
     ) => {
         if (!token) {
             toast.error("Unauthorized. Please log in again.");
@@ -71,17 +72,18 @@ export default function ProductEditor() {
         try {
             setIsSubmitting(true);
             if (mode === "create") {
-                await createProduct(token, data as CreateProductPayload);
+                await createProduct(token, data as ProductCreatePayload);
                 toast.success("Product created successfully!");
             } else {
-                const payload = data as { id: number; data: UpdateProductPayload };
+                const payload = data as { id: number; data: ProductUpdatePayload };
                 await updateProduct(token, payload.id, payload.data);
                 toast.success("Product updated successfully!");
             }
             navigate("/products", {replace: true});
         } catch (error) {
             if (axios.isAxiosError(error)) {
-                toast.error((error.response?.data as any)?.detail || "Request failed");
+                const detail = (error.response?.data as { detail?: string } | undefined)?.detail;
+                toast.error(detail || "Request failed");
             } else {
                 toast.error("Unexpected error");
             }

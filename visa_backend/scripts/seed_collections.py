@@ -6,12 +6,15 @@ Safe to run multiple times.
 
 import os
 import sys
-from sqlmodel import Session, select
 
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+
+# Ensure project root is in sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.db import engine
-from app.models.collection import Collection
+from app.db.session import engine
+from app.models.catalog import Collection
 
 
 def seed_collections():
@@ -49,10 +52,13 @@ def seed_collections():
     ]
 
     with Session(engine) as session:
-        existing_slugs = {c.slug for c in session.exec(select(Collection)).all()}
+        existing_slugs = {
+            c.slug for c in session.execute(select(Collection)).scalars().all()
+        }
 
         to_create = [
-            Collection(**c) for c in sample_collections
+            Collection(**c)
+            for c in sample_collections
             if c["slug"] not in existing_slugs
         ]
 

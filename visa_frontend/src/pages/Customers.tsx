@@ -56,7 +56,15 @@ export default function Customers() {
             </div>
 
             <Slider isOpen={isOpen} onClose={closeModal} title="Customer Details">
-                <CustomerForm customer={selectedCustomer || undefined} isLoading={isLoading}/>
+                <CustomerForm
+                    customer={selectedCustomer || undefined}
+                    isLoading={isLoading}
+                    onUpdated={() => {
+                        // Close the slider and refresh customers data/metrics
+                        closeModal();
+                        handleRefresh();
+                    }}
+                />
             </Slider>
 
             <div className="grid grid-cols-12 gap-4 md:gap-6">

@@ -1,86 +1,94 @@
 # app/api/v1/endpoints/auth.py
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlmodel import Session, select, SQLModel
+# app/api/v1/endpoints/store/auth.py
 
-from app.core.deps import get_current_user
-from app.core.security import create_access_token, verify_password, hash_password
-from app.db import get_session
-from app.models import User, Role, UserCreate
+from fastapi import APIRouter, Depends
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+
+from app.core.deps import get_session, get_current_user
 from app.schemas.user import ClientCreateSchema
+from app.services.auth_service import AuthService
+from app.models.user import User
 
 router = APIRouter()
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
-def register_user(payload: ClientCreateSchema, session: Session = Depends(get_session)):
-    """Public user registration endpoint."""
-
-    # Check if email exists
-    existing_user = session.exec(select(User).where(User.email == payload.email)).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    # Assign default role
-    user_role = session.exec(select(Role).where(Role.name == "client")).first()
-    if not user_role:
-        raise HTTPException(status_code=500, detail="User role not initialized")
-
-    user = User(
-        email=payload.email,
-        full_name=payload.full_name,
-        hashed_password=hash_password(payload.password),
-        is_verified=False,
-        is_active=True,
-    )
-
-    # Attach role
-    user.roles.append(user_role)
-
-    # Save
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-
+@router.post("/register", status_code=201)
+def register_user(payload: ClientCreateSchema, db: Session = Depends(get_session)):
+    user = AuthService.register_client(db, payload)
     return {"message": "User registered successfully", "email": user.email}
 
 
 @router.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
-    """Login with email and password, returns JWT."""
-    user = session.exec(select(User).where(User.email == form_data.username)).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    if not user.is_active:
-        raise HTTPException(status_code=403, detail="User account is inactive")
-
-    role_names = [r.name for r in user.roles]
-    if not any(role in role_names for role in ["client", "admin", "staff"]):
-        raise HTTPException(status_code=403, detail="This portal is for customers only")
-
-    access_token = create_access_token({"sub": user.email})
-    return {
-        "access_token": access_token,
-        "token_type": "Bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "is_verified": user.is_verified,
-            "roles": role_names
-        }
-    }
+def client_login(
+        form_data: OAuth2PasswordRequestForm = Depends(),
+        db: Session = Depends(get_session)
+):
+    user = AuthService.login_user(db, form_data.username, form_data.password)
+    AuthService.ensure_client(user)
+    return AuthService.build_client_login_response(user)
 
 
 @router.get("/me")
-def get_profile(current_user: User = Depends(get_current_user)):
-    """Return the currently authenticated user's profile."""
+def client_me(current_user: User = Depends(get_current_user)):
+    AuthService.ensure_client(current_user)
+
+    # ---------------------------------------------------
+    # Split full_name into first and last names
+    # ---------------------------------------------------
+    first_name = ""
+    last_name = ""
+    if current_user.full_name:
+        parts = current_user.full_name.strip().split(" ", 1)
+        first_name = parts[0]
+        last_name = parts[1] if len(parts) > 1 else ""
+
+    # ---------------------------------------------------
+    # Default empty address structure
+    # ---------------------------------------------------
+    empty_address = {
+        "name": "",
+        "street": "",
+        "apartment": "",
+        "city": "",
+        "state": "",
+        "zip": "",
+        "country": "",
+    }
+
+    shipping_address = empty_address.copy()
+    billing_address = empty_address.copy()
+
+    # ---------------------------------------------------
+    # Map the user's saved addresses
+    # ---------------------------------------------------
+    for addr in current_user.addresses:
+        mapped = {
+            "name": addr.full_name,
+            "street": addr.street,
+            "apartment": addr.apartment,
+            "city": addr.city,
+            "state": addr.state,
+            "zip": addr.zip,
+            "country": addr.country,
+        }
+
+        if addr.type == "shipping":
+            shipping_address = mapped
+        elif addr.type == "billing":
+            billing_address = mapped
+
+    # ---------------------------------------------------
+    # Return the exact UI interface structure
+    # ---------------------------------------------------
     return {
         "id": current_user.id,
         "email": current_user.email,
-        "full_name": current_user.full_name,
-        "roles": [r.name for r in current_user.roles],
-        "is_verified": current_user.is_verified,
+        "firstName": first_name,
+        "lastName": last_name,
+        "phone": "",  # backend does not have phone column yet
+
+        "shippingAddress": shipping_address,
+        "billingAddress": billing_address,
     }
